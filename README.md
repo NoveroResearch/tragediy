@@ -90,7 +90,7 @@ To generate a ring track which fits on 4 sheets of paper use the following comma
 ### Output:
 
  * `ring_track_clean.svg` this file is the full sized track. If you own a big enough printer you could just print this.
- * `ring_track_annotated.svg` basically the same file as above put it shows at which point readings are expected.
+ * `ring_track_annotated.svg` basically the same file as above but it shows at which point readings are expected.
  * `ring_location-table.*` these files allow to programmatically map vehicle readings to coordinates.
  * `ring_track_XxY.svg` these files are the tiles you could use for printing on a normal printer and glue together aferwards. How many of those files you get depends on the selected paper size.
 
