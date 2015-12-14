@@ -3,7 +3,7 @@ Generate printable Tracks for Anki (Over)Drive vehicles
 https://github.com/NoveroResearch/tragediy
 
 ### Disclaimer
-This software is solely designed for creating and using tracks in combination with the [drive-sdk](https://github.com/anki/drive-sdk) provided by anki. It is not intended to be used as a base for a commercial product competing with products sold by Anki.
+This software is solely designed for creating and using tracks in combination with the [drive-sdk](https://github.com/anki/drive-sdk) provided by Anki. It is not intended to be used as a base for a commercial product competing with products sold by Anki.
 The [Novero GmbH](http://novero.com) is in no way affiliated to Anki. All naming rights for Anki, Anki Drive and Anki Overdrive are property of [Anki](http://anki.com).
 
 ## About
@@ -17,8 +17,8 @@ As Anki hands out the drive-sdk, we decided to also give something back to the p
 
 This code can be used in two ways.
 
-  1. it generates custom tracks which can be printed (svg-files).
-  2. it allows to map readings from Anki vehicles back to x,y-coordinates. Useful for localization and visualization.
+  1. It generates custom tracks which can be printed (svg-files).
+  2. It allows to map readings from Anki vehicles back to x,y-coordinates. Useful for localization and visualization.
 
 To generate printouts build this project and run its binary (See instructions below).
 
