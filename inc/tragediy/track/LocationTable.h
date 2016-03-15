@@ -24,9 +24,9 @@
 #include <tragediy/util/BoundingBox.h>
 #include <tragediy/util/Vector2.h>
 
+#include <iostream>
 #include <map>
 #include <tuple>
-#include <iostream>
 
 class Track;
 

@@ -35,13 +35,14 @@ public:
 	typedef std::vector<std::shared_ptr<Lane>>::iterator iterator;
 	typedef std::vector<std::shared_ptr<Lane>>::const_iterator const_iterator;
 
-	const BoundingBox &getBoundingBox() const;
-	const BoundingBox &adaptCanvas();
+	auto getBoundingBox() const -> const BoundingBox &;
+	auto adaptCanvas() -> const BoundingBox &;
 
 	auto find(Lane::Identifier laneId) const -> const_iterator;
 	auto begin() const -> const_iterator;
 	auto end() const -> const_iterator;
 	auto size() const -> std::size_t;
+	auto at(Lane::Identifier laneIdentifier) const -> const std::shared_ptr<Lane>&;
 
 	void addLane(const Lane &lane);
 
@@ -50,6 +51,8 @@ public:
 	void writeToStreamAsSvg(std::ostream &out, const BoundingBox &bb) const;
 	void writeAnnotationToStreamAsSvg(std::ostream &out, const BoundingBox &bb) const;
 	void writeToStreamAsJson(std::ostream &out, const BoundingBox &bb) const;
+
+	auto map(const Vector2 &coordinate) const -> std::tuple<std::size_t, double, double>;
 
 private:
 	std::vector<std::shared_ptr<Lane>> lanes_;
@@ -70,12 +73,20 @@ inline void Track::addLane(const Lane &lane)
 	lanes_.push_back(std::make_shared<Lane>(lane));
 }
 
+inline auto Track::at(Lane::Identifier laneIdentifier) const -> const std::shared_ptr<Lane>&
+{
+	auto it = find(laneIdentifier);
+	if (it == end())
+		throw std::out_of_range("Could not find lane identifier in track data structure.");
+
+	return *it;
+}
+
 inline auto Track::find(Lane::Identifier laneId) const -> const_iterator
 {
-	return std::find_if(lanes_.begin(), lanes_.end(), [laneId](const std::shared_ptr<const Lane> &lane)
-	                    {
-		                    return lane->getLaneNumber() == laneId;
-		                });
+	return std::find_if(lanes_.begin(), lanes_.end(), [laneId](const std::shared_ptr<const Lane> &lane) {
+		return lane->getLaneNumber() == laneId;
+	});
 }
 
 inline auto Track::begin() const -> const_iterator

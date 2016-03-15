@@ -59,6 +59,7 @@ endif()
 # --- Collect Sources and Headers ---
 
 set(TRAGEDIY_SOURCES
+	${PROJECT_SOURCE_DIR}/src/track/AnkiMap.cpp
 	${PROJECT_SOURCE_DIR}/src/track/Lane.cpp
 	${PROJECT_SOURCE_DIR}/src/track/LaneArcTile.cpp
 	${PROJECT_SOURCE_DIR}/src/track/LaneLineTile.cpp

@@ -18,8 +18,8 @@
 */
 
 #include <tragediy/track/LaneArcTile.h>
-#include <tragediy/util/Math.h>
 #include <tragediy/util/Constants.h>
+#include <tragediy/util/Math.h>
 
 LaneArcTile::~LaneArcTile()
 {
@@ -166,6 +166,49 @@ void LaneArcTile::writeToStreamAsSvg(std::ostream &out, const BoundingBox &bb) c
 	}
 }
 
+auto LaneArcTile::map(const Vector2 &coordinate) const -> std::tuple<double, double>
+{
+	Vector2 midPoint = getMidPoint();
+
+	Vector2 tmpStart = startPoint_ - midPoint;
+	double angleStart = std::atan2(tmpStart[1], tmpStart[0]);
+
+	Vector2 p = coordinate - midPoint;
+	double angle = std::atan2(p[1], p[0]);
+	double error = std::fabs(p.getLength() - std::fabs(radius_));
+
+	double distance;
+	if (radius_ < 0.0)
+	{
+		// left turn
+		double anglediff = std::fmod(angleStart - angle, 2.0 * pi<double>);
+		if (anglediff < 0.0)
+			anglediff += 2.0 * pi<double>;
+		distance = anglediff * std::fabs(radius_);
+	}
+	else
+	{
+		// right turn
+		double anglediff = std::fmod(angle - angleStart, 2.0 * pi<double>);
+		if (anglediff < 0.0)
+			anglediff += 2.0 * pi<double>;
+		distance = anglediff * std::fabs(radius_);
+	}
+
+	if (distance <= length_)
+		return std::make_tuple(distance, error);
+	else if (distance > 0.5 * length_ + pi<double> * std::fabs(radius_))
+	{
+		// start point is nearest to coordinate
+		return std::make_tuple(0.0, (coordinate - startPoint_).getLength());
+	}
+	else
+	{
+		// end point is nearest to coordinate
+		return std::make_tuple(length_, (coordinate - getEndPoint()).getLength());
+	}
+}
+
 auto LaneArcTile::getPointOnLane(double length) const -> Vector2
 {
 	Vector2 midPoint = getMidPoint();
@@ -191,7 +234,7 @@ auto LaneArcTile::getDirectionOnLane(double length) const -> Vector2
 void LaneArcTile::writeArc(std::ostream &out, const Vector2 &midPoint, double radius, double angleStart, double angleEnd, double offset, double width, std::string color) const
 {
 	if (angleEnd < angleStart)
-		writeArc(out, midPoint, radius, angleEnd, angleStart, -offset, width);
+		writeArc(out, midPoint, radius, angleEnd, angleStart, -offset, width, color);
 	else if (angleEnd == angleStart)
 		return;
 	else
@@ -199,6 +242,6 @@ void LaneArcTile::writeArc(std::ostream &out, const Vector2 &midPoint, double ra
 		Vector2 startPoint = midPoint + Vector2(std::cos(angleStart), std::sin(angleStart)) * (std::fabs(radius) - offset);
 		Vector2 endPoint = midPoint + Vector2(std::cos(angleEnd), std::sin(angleEnd)) * (std::fabs(radius) - offset);
 
-		out << "<path d =\"M " << startPoint[0] << "," << startPoint[1] << " A " << std::fabs(radius) << "," << std::fabs(radius) << " 0 " << (angleEnd - angleStart > 0.5 * pi<double> ? 1 : 0) << ",1 " << endPoint[0] << "," << endPoint[1] << "\" style=\"fill:none; stroke:" << color << "; stroke-width:" << width << ";\" />\n";
+		out << "<path d =\"M " << startPoint[0] << "," << startPoint[1] << " A " << std::fabs(radius) << "," << std::fabs(radius) << " 0 " << (angleEnd - angleStart > pi<double> ? 1 : 0) << " 1 " << endPoint[0] << "," << endPoint[1] << "\" style=\"fill:none; stroke:" << color << "; stroke-width:" << width << ";\" />\n";
 	}
 }

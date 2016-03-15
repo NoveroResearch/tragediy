@@ -115,6 +115,28 @@ auto Lane::getDirectionOnLane(double distance) const -> Vector2
 	return tiles_[tileNumber]->getDirectionOnLane(distance);
 }
 
+auto Lane::map(const Vector2 &coordinate) const -> std::tuple<double, double>
+{
+	double distance = std::numeric_limits<double>::infinity();
+	double error = std::numeric_limits<double>::infinity();
+	double total = 0.0;
+
+	for (auto &i : tiles_)
+	{
+		auto ret = i->map(coordinate);
+
+		if (std::get<1>(ret) < error)
+		{
+			error = std::get<1>(ret);
+			distance = std::get<0>(ret) + total;
+		}
+
+		total += i->getTotalLength();
+	}
+
+	return std::make_tuple(distance, error);
+}
+
 void Lane::writeToStreamAsSvg(std::ostream &out, const BoundingBox &bb) const
 {
 	for (auto &tile : tiles_)

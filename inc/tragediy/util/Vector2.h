@@ -20,8 +20,8 @@
 #ifndef TRAGEDIY_UTIL_VECTOR2_H
 #define TRAGEDIY_UTIL_VECTOR2_H
 
-#include <cstddef>
 #include <cmath>
+#include <cstddef>
 #include <iostream>
 
 class Vector2

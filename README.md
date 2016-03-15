@@ -87,12 +87,16 @@ To generate a ring track which fits on 4 sheets of paper use the following comma
 
 	./tragediy -t ring -s a3-landscape
 
+To import the crossroads track from Anki app data use the following command:
+
+	./tragediy -I $SOME_DIRECTORY/com.anki.drive/ -i IntersecProduction_map.txt --prefix crossroads
+
 ### Output:
 
- * `ring_track_clean.svg` this file is the full sized track. If you own a big enough printer you could just print this.
- * `ring_track_annotated.svg` basically the same file as above but it shows at which point readings are expected.
- * `ring_location-table.*` these files allow to programmatically map vehicle readings to coordinates.
- * `ring_track_XxY.svg` these files are the tiles you could use for printing on a normal printer and glue together aferwards. How many of those files you get depends on the selected paper size.
+ * `${prefix}_track_clean.svg` this file is the full sized track. If you own a big enough printer you could just print this.
+ * `${prefix}_track_annotated.svg` basically the same file as above but it shows at which point readings are expected.
+ * `${prefix}_location-table.*` these files allow to programmatically map vehicle readings to coordinates.
+ * `${prefix}_track_XxY.svg` these files are the tiles you could use for printing on a normal printer and glue together afterwards. How many of those files you get depends on the selected paper size.
 
 ### Adding of tracks
 Currently the available tracks are hardcoded. Take a look at `constructRingTrack` and `constructStarterTrack` in Track.cpp. From this you should get an idea how to define a new track. Same applies for papersizes.

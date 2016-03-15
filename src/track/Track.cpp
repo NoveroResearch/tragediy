@@ -23,8 +23,8 @@
 #include <tragediy/util/Constants.h>
 #include <tragediy/util/Math.h>
 
-#include <boost/property_tree/json_parser.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 #include <limits>
 #include <map>
@@ -388,4 +388,20 @@ void Track::writeToStreamAsJson(std::ostream &out, const BoundingBox &bb) const
 		out << "\n";
 	}
 	out << "}\n";
+}
+
+auto Track::map(const Vector2 &coordinate) const -> std::tuple<std::size_t, double, double>
+{
+	std::tuple<std::size_t, double, double> best = std::make_tuple(std::numeric_limits<std::size_t>::max(), std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+
+	for (auto &lane : lanes_)
+	{
+		double distance, error;
+		std::tie(distance, error) = lane->map(coordinate);
+
+		if (error < std::get<2>(best))
+			best = std::make_tuple(lane->getLaneNumber(), distance, error);
+	}
+
+	return best;
 }

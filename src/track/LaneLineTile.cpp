@@ -110,6 +110,31 @@ void LaneLineTile::writeToStreamAsSvg(std::ostream &out, const BoundingBox &bb) 
 	}
 }
 
+auto LaneLineTile::map(const Vector2 &coordinate) const -> std::tuple<double, double>
+{
+	Vector2 p = coordinate - startPoint_;
+	double distance = p * startDirection_, error;
+
+	if (distance < 0.0)
+	{
+		// start point is nearest to coordinate
+		error = p.getLength();
+		distance = 0.0;
+	}
+	else if (distance > length_)
+	{
+		// end point is nearest to coordinate
+		error = (coordinate - getEndPoint()).getLength();
+		distance = length_;
+	}
+	else
+	{
+		error = (p - distance * startDirection_).getLength();
+	}
+
+	return std::make_tuple(distance, error);
+}
+
 auto LaneLineTile::getPointOnLane(double length) const -> Vector2
 {
 	return getStartPoint() + getStartDirection() * length;

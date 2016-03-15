@@ -21,9 +21,9 @@
 #include <tragediy/track/Track.h>
 #include <tragediy/util/Constants.h>
 
-#include <boost/property_tree/json_parser.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/numeric/conversion/cast.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 #include <limits>
 

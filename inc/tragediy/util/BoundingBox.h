@@ -20,9 +20,9 @@
 #ifndef TRAGEDIY_UTIL_BOUNDINGBOX_H
 #define TRAGEDIY_UTIL_BOUNDINGBOX_H
 
-#include <tragediy/util/Vector2.h>
 #include <algorithm>
 #include <limits>
+#include <tragediy/util/Vector2.h>
 
 struct BoundingBox
 {

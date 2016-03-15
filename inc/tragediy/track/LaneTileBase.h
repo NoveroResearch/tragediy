@@ -20,13 +20,13 @@
 #ifndef TRAGEDIY_TRACK_LANETILEBASE_H
 #define TRAGEDIY_TRACK_LANETILEBASE_H
 
-#include <tragediy/util/Vector2.h>
-#include <tragediy/util/BoundingBox.h>
 #include <tragediy/util/AssertionError.h>
+#include <tragediy/util/BoundingBox.h>
 #include <tragediy/util/Constants.h>
+#include <tragediy/util/Vector2.h>
 
-#include <vector>
 #include <memory>
+#include <vector>
 
 enum MarkType
 {
@@ -77,6 +77,8 @@ public:
 	virtual Vector2 getEndPoint() const = 0;
 	virtual Vector2 getEndDirection() const = 0;
 	virtual BoundingBox getBoundingBox() const = 0;
+
+	virtual std::tuple<double, double> map(const Vector2 &coordinate) const = 0;
 
 	Vector2 startPoint_;
 	Vector2 startDirection_;

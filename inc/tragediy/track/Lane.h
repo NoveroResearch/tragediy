@@ -24,8 +24,8 @@
 #include <tragediy/util/BoundingBox.h>
 #include <tragediy/util/Constants.h>
 
-#include <vector>
 #include <utility>
+#include <vector>
 
 class Lane
 {
@@ -57,10 +57,14 @@ public:
 	auto getPointOnLane(double length) const -> Vector2;
 	auto getDirectionOnLane(double length) const -> Vector2;
 
+	double getPositionOfTile(LaneTileBase::Identifier id) const;
+
+	std::tuple<double, double> map(const Vector2 &coordinate) const;
+
 	void writeToStreamAsSvg(std::ostream &out, const BoundingBox &bb) const;
 	void writeAnnotationToStreamAsSvg(std::ostream &out, const BoundingBox &bb) const;
 
-	std::shared_ptr<LaneTileBase> operator[](LaneTileBase::Identifier id) const;
+	auto operator[](LaneTileBase::Identifier id) const -> std::shared_ptr<LaneTileBase>;
 
 private:
 	Identifier laneNumber_;
@@ -123,6 +127,17 @@ inline auto Lane::size() const -> std::size_t
 inline auto Lane::operator[](LaneTileBase::Identifier id) const -> std::shared_ptr<LaneTileBase>
 {
 	return *(tiles_.begin() + id);
+}
+
+inline double Lane::getPositionOfTile(LaneTileBase::Identifier id) const
+{
+	throwing_assert(id < size());
+
+	double position = 0.0;
+	for (LaneTileBase::Identifier i = 0; i < id; ++i)
+		position += tiles_[i]->getTotalLength();
+
+	return position;
 }
 
 #endif
