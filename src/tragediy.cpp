@@ -136,6 +136,16 @@ auto setPaperSize(const BoundingBox &bbTrack) -> std::tuple<double, double>
 		paperWidth = 210.0;
 		paperHeight = 297.0;
 	}
+	else if (tileSize_ == "letter")
+	{
+		paperWidth = 215.9;
+		paperHeight = 279.4;
+	}
+	else if (tileSize_ == "legal")
+	{
+		paperWidth = 215.9;
+		paperHeight = 355.6;
+	}
 	else
 	{
 		paperWidth = bbTrack.xMax_ - bbTrack.xMin_;
@@ -279,7 +289,7 @@ int main(int argc, char *argv[])
 	{
 		tileSize_ = vm["size"].as<std::string>();
 
-		if (tileSize_ != "a3-landscape" && tileSize_ != "a4-landscape" && tileSize_ != "a3-portrait" && tileSize_ != "a4-portrait" && tileSize_ != "full")
+		if (tileSize_ != "a3-landscape" && tileSize_ != "a4-landscape" && tileSize_ != "a3-portrait" && tileSize_ != "a4-portrait" && tileSize_ != "letter" && tileSize_ != "legal" && tileSize_ != "full")
 		{
 			std::cout << "Invalid tile size '" << tileSize_ << "'." << std::endl;
 			std::exit(EXIT_FAILURE);
