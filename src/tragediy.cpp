@@ -136,21 +136,21 @@ auto setPaperSize(const BoundingBox &bbTrack) -> std::tuple<double, double>
 		paperWidth = 210.0;
 		paperHeight = 297.0;
 	}
-    else if (tileSize_ == "letter-landscape")
-    {
-        paperWidth = 279.4;
-        paperHeight = 215.9;
-    }
+	else if (tileSize_ == "letter-landscape")
+	{
+		paperWidth = 279.4;
+		paperHeight = 215.9;
+	}
 	else if (tileSize_ == "letter-portrait")
 	{
 		paperWidth = 215.9;
 		paperHeight = 279.4;
 	}
-    else if (tileSize_ == "legal-landscape")
-    {
-        paperWidth = 355.6;
-        paperHeight = 215.9;
-    }
+	else if (tileSize_ == "legal-landscape")
+	{
+		paperWidth = 355.6;
+		paperHeight = 215.9;
+	}
 	else if (tileSize_ == "legal-portrait")
 	{
 		paperWidth = 215.9;
