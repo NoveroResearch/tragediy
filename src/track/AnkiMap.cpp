@@ -1,16 +1,18 @@
-#include <cctype>
-#include <iostream>
-#include <string>
-#include <sstream>
-#include <fstream>
-#include <vector>
-#include <map>
 #include <tragediy/track/AnkiMap.h>
-#include <tragediy/track/Track.h>
-#include <tragediy/track/LaneLineTile.h>
 #include <tragediy/track/LaneArcTile.h>
+#include <tragediy/track/LaneLineTile.h>
+#include <tragediy/track/Track.h>
 #include <tragediy/util/AssertionError.h>
+
 #include <boost/lexical_cast.hpp>
+
+#include <cctype>
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <sstream>
+#include <string>
+#include <vector>
 
 std::istream &skipAhead(std::istream &in)
 {
@@ -293,7 +295,7 @@ void AnkiMap::convert(Track &track, double rotationAngle)
 	}
 
 	// Construct middle lane and translate locations into longitudinal/lateral coordinate system.
-	std::map<Lane::Identifier, std::map<std::size_t, std::map<double, std::pair<std::size_t, std::size_t>>>> locations;	// Maps (lane id, tile index, longitudinal position) to the encoded numbers in the barcode (segment/piece identifier, location id)
+	std::map<Lane::Identifier, std::map<std::size_t, std::map<double, std::pair<std::size_t, std::size_t>>>> locations; // Maps (lane id, tile index, longitudinal position) to the encoded numbers in the barcode (segment/piece identifier, location id)
 	{
 		Lane lane(0);
 
@@ -346,7 +348,7 @@ void AnkiMap::convert(Track &track, double rotationAngle)
 				Lane::Identifier laneIdentifier;
 				std::tie(laneIdentifier, distance, error) = prototype.map(q);
 
-				if (error >= 0.5*9.0)
+				if (error >= 0.5 * 9.0)
 					std::cout << "WARNING: Could not reliably map cartesian location to longitudinal location." << std::endl;
 
 				locations[laneIdentifier][lane.size()][distance] = std::make_pair(pieces_[currentPieceId].identifier_, i);

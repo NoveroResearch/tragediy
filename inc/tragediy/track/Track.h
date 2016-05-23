@@ -42,7 +42,7 @@ public:
 	auto begin() const -> const_iterator;
 	auto end() const -> const_iterator;
 	auto size() const -> std::size_t;
-	auto at(Lane::Identifier laneIdentifier) const -> const std::shared_ptr<Lane>&;
+	auto at(Lane::Identifier laneIdentifier) const -> const std::shared_ptr<Lane> &;
 
 	void addLane(const Lane &lane);
 
@@ -73,7 +73,7 @@ inline void Track::addLane(const Lane &lane)
 	lanes_.push_back(std::make_shared<Lane>(lane));
 }
 
-inline auto Track::at(Lane::Identifier laneIdentifier) const -> const std::shared_ptr<Lane>&
+inline auto Track::at(Lane::Identifier laneIdentifier) const -> const std::shared_ptr<Lane> &
 {
 	auto it = find(laneIdentifier);
 	if (it == end())

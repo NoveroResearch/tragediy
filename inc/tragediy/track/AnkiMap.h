@@ -1,10 +1,11 @@
 #ifndef TRAGEDIY_TRACK_ANKIMAP_H
 #define TRAGEDIY_TRACK_ANKIMAP_H
 
+#include <tragediy/track/Track.h>
+
 #include <iostream>
 #include <map>
 #include <vector>
-#include <tragediy/track/Track.h>
 
 struct AnkiPose
 {
