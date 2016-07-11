@@ -59,9 +59,15 @@ Linux (debian):
 
 ## Build
 
-This code was tested with clang on OS X 10.11.2 and XCode 7.2. But should also work with gcc and/or Linux.
+The compiler is required to support C++14 language features. The code was tested to compile with
+
+ * Apple's clang 7.2 on OS X 10.11.2,
+ * gcc 5.3.1 on Ubuntu 16.04,
+ * clang 3.6 on Ubuntu 16.04,
+ * clang 3.8 on Ubuntu 16.04.
 
 ### Makefile
+
 	git clone git@github.com:NoveroResearch/tragediy.git
 	cd tragediy
 	mkdir build
