@@ -137,6 +137,120 @@ auto Lane::map(const Vector2 &coordinate) const -> std::tuple<double, double>
 	return std::make_tuple(distance, error);
 }
 
+auto Lane::mapConstrained(const Vector2 &coordinate, const Vector2 &direction) const -> std::tuple<double, double>
+{
+	double distance = std::numeric_limits<double>::infinity();
+	double error = std::numeric_limits<double>::infinity();
+	double total = 0.0;
+
+	for (auto &i : tiles_)
+	{
+		auto ret = i->map(coordinate);
+
+		if (std::get<1>(ret) < error && std::abs(i->getDirectionOnLane(std::get<0>(ret)) * direction) >= 1.0 / std::sqrt(2.0))
+		{
+			error = std::get<1>(ret);
+			distance = std::get<0>(ret) + total;
+		}
+
+		total += i->getTotalLength();
+	}
+
+	return std::make_tuple(distance, error);
+}
+
+auto Lane::map(const Vector2 &coordinate, double lbound, double ubound) const -> std::tuple<double, double>
+{
+	if (lbound > ubound)
+		return std::make_tuple(std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+
+	double distance = std::numeric_limits<double>::infinity();
+	double error = std::numeric_limits<double>::infinity();
+	double total = 0.0;
+	double laneLength = getTotalLength();
+
+	if (ubound - lbound >= laneLength)
+	{
+		lbound = 0.0;
+		ubound = laneLength;
+	}
+	else
+	{
+		// Determine lbound and ubound \in [0; laneLength)
+		lbound = std::fmod(lbound, laneLength);
+		ubound = std::fmod(ubound, laneLength);
+		if (lbound < 0.0)
+			lbound += laneLength;
+		if (ubound < 0.0)
+			ubound += laneLength;
+	}
+
+	for (auto &i : tiles_)
+	{
+		std::tuple<double, double> ret;
+
+		if (lbound <= ubound)
+		{
+			double lboundTile = std::max(total, lbound);
+			double uboundTile = std::min(total + i->getTotalLength(), ubound);
+
+			ret = i->map(coordinate, lboundTile - total, uboundTile - total);
+		}
+		else
+		{
+			double lboundTile1 = std::max(total, lbound);
+			double uboundTile1 = std::min(total + i->getTotalLength(), laneLength);
+
+			double lboundTile2 = std::max(total, 0.0);
+			double uboundTile2 = std::min(total + i->getTotalLength(), ubound);
+
+			auto ret1 = i->map(coordinate, lboundTile1 - total, uboundTile1 - total);
+			auto ret2 = i->map(coordinate, lboundTile2 - total, uboundTile2 - total);
+
+			if (std::get<1>(ret1) < std::get<1>(ret2))
+				ret = ret1;
+			else
+				ret = ret2;
+		}
+
+		if (std::get<1>(ret) < error)
+		{
+			error = std::get<1>(ret);
+			distance = std::get<0>(ret) + total;
+		}
+
+		total += i->getTotalLength();
+	}
+
+	return std::make_tuple(distance, error);
+}
+
+auto Lane::mapSigned(const Vector2 &coordinate) const -> std::tuple<double, double, double>
+{
+	double distance, offset, error;
+	std::tie(distance, error) = map(coordinate);
+
+	if (error == std::numeric_limits<double>::infinity())
+		return std::make_tuple(distance, error, error);
+
+	offset = (coordinate - getPointOnLane(distance)) * getDirectionOnLane(distance).getPerpendicularVectorRight();
+	error = std::abs((coordinate - getPointOnLane(distance)) * getDirectionOnLane(distance));
+	return std::make_tuple(distance, offset, error);
+}
+
+auto Lane::mapSigned(const Vector2 &coordinate, double lbound, double ubound) const -> std::tuple<double, double, double>
+{
+	double distance, offset, error;
+	std::tie(distance, error) = map(coordinate, lbound, ubound);
+
+	if (error == std::numeric_limits<double>::infinity())
+		return std::make_tuple(distance, error, error);
+
+	offset = (coordinate - getPointOnLane(distance)) * getDirectionOnLane(distance).getPerpendicularVectorRight();
+	error = std::abs((coordinate - getPointOnLane(distance)) * getDirectionOnLane(distance));
+	return std::make_tuple(distance, offset, error);
+}
+
 void Lane::writeToStreamAsSvg(std::ostream &out, const BoundingBox &bb) const
 {
 	for (auto &tile : tiles_)

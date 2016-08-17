@@ -44,6 +44,8 @@ public:
 	auto size() const -> std::size_t;
 	auto at(Lane::Identifier laneIdentifier) const -> const std::shared_ptr<Lane> &;
 
+	auto getLaneIdentifierClosestToLateralPosition(double positionLateral) const -> Lane::Identifier;
+
 	void addLane(const Lane &lane);
 
 	void readJsonFromStream(std::istream &in);
@@ -53,6 +55,11 @@ public:
 	void writeToStreamAsJson(std::ostream &out, const BoundingBox &bb) const;
 
 	auto map(const Vector2 &coordinate) const -> std::tuple<std::size_t, double, double>;
+	auto mapSigned(const Vector2 &coordinate) const -> std::tuple<std::size_t, double, double, double>;
+
+	auto mapConstrained(const Vector2 &coordinate, const Vector2 &direction) const -> std::tuple<std::size_t, double, double>;
+
+	auto unmapSigned(std::size_t lane, double distance, double offset) const -> Vector2;
 
 private:
 	std::vector<std::shared_ptr<Lane>> lanes_;
@@ -102,6 +109,22 @@ inline auto Track::end() const -> const_iterator
 inline auto Track::size() const -> std::size_t
 {
 	return lanes_.size();
+}
+
+inline auto Track::getLaneIdentifierClosestToLateralPosition(double positionLateral) const -> Lane::Identifier
+{
+	if (size() == 0)
+		throw std::logic_error("Cannot snap to lane since track contains no lanes.");
+
+	double laneNumber = positionLateral / distBase;
+	double snappedLaneNumber = std::max(std::min(laneNumber, static_cast<double>(size() - 1)), 0.0);
+
+	return static_cast<Lane::Identifier>(std::round(snappedLaneNumber));
+}
+
+inline auto Track::unmapSigned(std::size_t lane, double distance, double offset) const -> Vector2
+{
+	return (*find(lane))->unmapSigned(distance, offset);
 }
 
 #endif

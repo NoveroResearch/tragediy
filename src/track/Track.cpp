@@ -283,6 +283,8 @@ void Track::readJsonFromStream(std::istream &in)
 		throw std::runtime_error(std::string("Error parsing track from JSON input.") + err.what());
 	}
 
+	lanes_.clear();
+
 	if (pt.find("left") == pt.not_found() || pt.find("top") == pt.not_found() || pt.find("width") == pt.not_found() || pt.find("height") == pt.not_found())
 	{
 		throw std::runtime_error("Error parsing track from JSON input: No bounding box description found.");
@@ -398,6 +400,38 @@ auto Track::map(const Vector2 &coordinate) const -> std::tuple<std::size_t, doub
 	{
 		double distance, error;
 		std::tie(distance, error) = lane->map(coordinate);
+
+		if (error < std::get<2>(best))
+			best = std::make_tuple(lane->getLaneNumber(), distance, error);
+	}
+
+	return best;
+}
+
+auto Track::mapSigned(const Vector2 &coordinate) const -> std::tuple<std::size_t, double, double, double>
+{
+	std::tuple<std::size_t, double, double, double> best = std::make_tuple(std::numeric_limits<std::size_t>::max(), std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+
+	for (auto &lane : lanes_)
+	{
+		double distance, offset, error;
+		std::tie(distance, offset, error) = lane->mapSigned(coordinate);
+
+		if (error < std::get<3>(best))
+			best = std::make_tuple(lane->getLaneNumber(), distance, offset, error);
+	}
+
+	return best;
+}
+
+auto Track::mapConstrained(const Vector2 &coordinate, const Vector2 &direction) const -> std::tuple<std::size_t, double, double>
+{
+	std::tuple<std::size_t, double, double> best = std::make_tuple(std::numeric_limits<std::size_t>::max(), std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+
+	for (auto &lane : lanes_)
+	{
+		double distance, error;
+		std::tie(distance, error) = lane->mapConstrained(coordinate, direction);
 
 		if (error < std::get<2>(best))
 			best = std::make_tuple(lane->getLaneNumber(), distance, error);

@@ -135,6 +135,38 @@ auto LaneLineTile::map(const Vector2 &coordinate) const -> std::tuple<double, do
 	return std::make_tuple(distance, error);
 }
 
+auto LaneLineTile::map(const Vector2 &coordinate, double lbound, double ubound) const -> std::tuple<double, double>
+{
+	if (lbound > ubound)
+		return std::make_tuple(std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+
+	// Clip range to tile.
+	lbound = std::max(0.0, lbound);
+	ubound = std::min(length_, ubound);
+
+	Vector2 p = coordinate - startPoint_;
+	double distance = p * startDirection_, error;
+
+	if (distance < lbound)
+	{
+		// start point is nearest to coordinate
+		error = (coordinate - getPointOnLane(lbound)).getLength();
+		distance = lbound;
+	}
+	else if (distance > ubound)
+	{
+		// end point is nearest to coordinate
+		error = (coordinate - getPointOnLane(ubound)).getLength();
+		distance = ubound;
+	}
+	else
+	{
+		error = (p - distance * startDirection_).getLength();
+	}
+
+	return std::make_tuple(distance, error);
+}
+
 auto LaneLineTile::getPointOnLane(double length) const -> Vector2
 {
 	return getStartPoint() + getStartDirection() * length;

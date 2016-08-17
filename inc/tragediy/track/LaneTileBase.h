@@ -79,6 +79,12 @@ public:
 	virtual BoundingBox getBoundingBox() const = 0;
 
 	virtual std::tuple<double, double> map(const Vector2 &coordinate) const = 0;
+	virtual std::tuple<double, double> map(const Vector2 &coordinate, double lbound, double ubound) const = 0;
+
+	auto mapSigned(const Vector2 &coordinate) const -> std::tuple<double, double, double>;
+	auto mapSigned(const Vector2 &coordinate, double lbound, double ubound) const -> std::tuple<double, double, double>;
+
+	auto unmapSigned(double distance, double offset) const -> Vector2;
 
 	Vector2 startPoint_;
 	Vector2 startDirection_;
@@ -174,6 +180,11 @@ inline auto LaneTileBase::getStartPoint() const -> Vector2
 inline auto LaneTileBase::getStartDirection() const -> Vector2
 {
 	return startDirection_;
+}
+
+inline auto LaneTileBase::unmapSigned(double distance, double offset) const -> Vector2
+{
+	return getPointOnLane(distance) + getDirectionOnLane(distance).getPerpendicularVectorRight() * offset;
 }
 
 #endif

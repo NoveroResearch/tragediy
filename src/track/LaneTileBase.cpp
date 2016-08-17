@@ -108,3 +108,26 @@ void LaneTileBase::setWidthBase(double from, double to, double thickness)
 		widthBase_.insert(it, std::make_pair(to, curWidth));
 	}
 }
+
+auto LaneTileBase::mapSigned(const Vector2 &coordinate) const -> std::tuple<double, double, double>
+{
+	double distance, offset, error;
+	std::tie(distance, error) = map(coordinate);
+
+	offset = (coordinate - getPointOnLane(distance)) * getDirectionOnLane(distance).getPerpendicularVectorRight();
+	error = std::abs((coordinate - getPointOnLane(distance)) * getDirectionOnLane(distance));
+	return std::make_tuple(distance, offset, error);
+}
+
+auto LaneTileBase::mapSigned(const Vector2 &coordinate, double lbound, double ubound) const -> std::tuple<double, double, double>
+{
+	double distance, offset, error;
+	std::tie(distance, error) = map(coordinate, lbound, ubound);
+
+	if (error == std::numeric_limits<double>::infinity())
+		return std::make_tuple(distance, error, error);
+
+	offset = (coordinate - getPointOnLane(distance)) * getDirectionOnLane(distance).getPerpendicularVectorRight();
+	error = std::abs((coordinate - getPointOnLane(distance)) * getDirectionOnLane(distance));
+	return std::make_tuple(distance, offset, error);
+}

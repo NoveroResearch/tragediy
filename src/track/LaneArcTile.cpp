@@ -209,6 +209,56 @@ auto LaneArcTile::map(const Vector2 &coordinate) const -> std::tuple<double, dou
 	}
 }
 
+auto LaneArcTile::map(const Vector2 &coordinate, double lbound, double ubound) const -> std::tuple<double, double>
+{
+	if (lbound > ubound)
+		return std::make_tuple(std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+
+	// Clip range to tile.
+	lbound = std::max(0.0, lbound);
+	ubound = std::min(length_, ubound);
+
+	Vector2 midPoint = getMidPoint();
+
+	Vector2 tmpStart = startPoint_ - midPoint;
+	double angleStart = std::atan2(tmpStart[1], tmpStart[0]);
+
+	Vector2 p = coordinate - midPoint;
+	double angle = std::atan2(p[1], p[0]);
+	double error = std::fabs(p.getLength() - std::fabs(radius_));
+
+	double distance;
+	if (radius_ < 0.0)
+	{
+		// left turn
+		double anglediff = std::fmod(angleStart - angle, 2.0 * pi<double>);
+		if (anglediff < 0.0)
+			anglediff += 2.0 * pi<double>;
+		distance = anglediff * std::fabs(radius_);
+	}
+	else
+	{
+		// right turn
+		double anglediff = std::fmod(angle - angleStart, 2.0 * pi<double>);
+		if (anglediff < 0.0)
+			anglediff += 2.0 * pi<double>;
+		distance = anglediff * std::fabs(radius_);
+	}
+
+	if (distance >= lbound && distance <= ubound)
+		return std::make_tuple(distance, error);
+	else if (distance > (0.5 * lbound + 0.5 * ubound) + pi<double> * std::fabs(radius_))
+	{
+		// lbound point is nearest to coordinate
+		return std::make_tuple(lbound, (coordinate - getPointOnLane(lbound)).getLength());
+	}
+	else
+	{
+		// ubound point is nearest to coordinate
+		return std::make_tuple(ubound, (coordinate - getPointOnLane(ubound)).getLength());
+	}
+}
+
 auto LaneArcTile::getPointOnLane(double length) const -> Vector2
 {
 	Vector2 midPoint = getMidPoint();

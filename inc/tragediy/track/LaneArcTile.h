@@ -38,6 +38,7 @@ public:
 	void writeToStreamAsSvg(std::ostream &out, const BoundingBox &bb) const;
 
 	auto map(const Vector2 &coordinate) const -> std::tuple<double, double>;
+	auto map(const Vector2 &coordinate, double lbound, double ubound) const -> std::tuple<double, double>;
 
 	auto getPointOnLane(double length) const -> Vector2;
 	auto getDirectionOnLane(double length) const -> Vector2;
