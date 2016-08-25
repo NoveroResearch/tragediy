@@ -1,4 +1,9 @@
 #include <tragediy/track/AnkiOverdriveMap.h>
+#include <tragediy/track/LaneArcTile.h>
+#include <tragediy/track/LaneLineTile.h>
+#include <tragediy/util/Math.h>
+
+#include <cmath>
 
 #include <boost/lexical_cast.hpp>
 
@@ -42,8 +47,6 @@ std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceLocation &locat
 	skipAhead(in) >> location.lane_;
 	skipAhead(in) >> location.section_;
 
-	std::cout << location.pose_.dx_ << " " << location.pose_.dy_ << " " << location.pose_.dphi_ << std::endl;
-
 	return in;
 }
 
@@ -63,8 +66,6 @@ std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceDescription &pi
 	skipAhead(in) >> pieceDescription.intersectionCodeLength_;
 	skipAhead(in) >> pieceDescription.distanceLanes_;
 	skipAhead(in) >> pieceDescription.numSections_;
-
-	std::cout << "road piece " << pieceDescription.identifier_ << std::endl;
 
 	// Read localizable sections.
 	{
@@ -222,13 +223,168 @@ void AnkiOverdriveMap::loadRacingMap(boost::filesystem::path &pathToAppData, con
 	loadRoadPieceDefinitions(pathToAppData);
 }
 
+void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
+{
+	throwing_assert(roadPieces_.size() > 0);
+
+	std::size_t numLanes;
+	double distanceLanes;
+	{
+		auto &p = roadPieceDescriptions_[roadPieces_[0].getFullIdentifier()];
+		numLanes = p.numLanes_;
+		distanceLanes = p.distanceLanes_ * 1000.0;
+	}
+
+	throwing_assert(numLanes >= 1);
+
+	Track prototype;
+
+	for (std::size_t i = 0; i < numLanes; ++i)
+	{
+		Lane lane(i);
+
+		std::shared_ptr<LaneTileBase> tile;
+
+		std::size_t pieceId0 = 0;
+		std::size_t socketId0 = 1;
+
+		std::size_t currentPieceId = pieceId0;
+		std::size_t currentSocketId = socketId0;
+
+		Vector2 offset0(offsetX_, offsetY_);
+		Vector2 direction0(std::cos(theta_ + rotationAngle), std::sin(theta_ + rotationAngle));
+		offset0 += direction0.getPerpendicularVectorRight() * ((i - 0.5 * (numLanes - 1)) * distanceLanes);
+
+		do
+		{
+			throwing_assert(currentPieceId < roadPieces_.size());
+
+			auto &p = roadPieceDescriptions_[roadPieces_[currentPieceId].getFullIdentifier()];
+
+			throwing_assert(p.numLanes_ == numLanes);
+			throwing_assert(currentSocketId < p.connectors_.size());
+
+			if (p.type_ == 0)
+			{
+				// straight
+				throwing_assert(p.localizableSections_.size() == 1);
+
+				Vector2 pointStart(p.localizableSections_[0].poseStart_.dx_, p.localizableSections_[0].poseStart_.dy_);
+				Vector2 pointEnd(p.localizableSections_[0].poseEnd_.dx_, p.localizableSections_[0].poseEnd_.dy_);
+
+				double length = (pointEnd - pointStart).getLength();
+
+				if (!tile)
+					tile = std::make_shared<LaneLineTile>(offset0, direction0, length * 1000.0);
+				else
+					tile = std::make_shared<LaneLineTile>(tile, length * 1000.0);
+			}
+			else if (p.type_ == 4)
+			{
+				// intersection
+				throwing_assert(false);
+			}
+			else if (p.type_ == 1)
+			{
+				// curve
+				throwing_assert(p.localizableSections_.size() == 1);
+
+				Vector2 pointStart(p.localizableSections_[0].poseStart_.dx_, p.localizableSections_[0].poseStart_.dy_);
+				Vector2 directionStart(std::cos(p.localizableSections_[0].poseStart_.dphi_), std::sin(p.localizableSections_[0].poseStart_.dphi_));
+
+				Vector2 pointEnd(p.localizableSections_[0].poseEnd_.dx_, p.localizableSections_[0].poseEnd_.dy_);
+				Vector2 directionEnd(std::cos(p.localizableSections_[0].poseEnd_.dphi_), std::sin(p.localizableSections_[0].poseEnd_.dphi_));
+
+				Vector2 A(directionStart.getPerpendicularVectorLeft() - directionEnd.getPerpendicularVectorLeft());
+				Vector2 b(pointEnd - pointStart);
+
+				throwing_assert(A * A >= 1.0e-6);
+
+				// Solve A^T*A*x = A^T*b
+				double r_mid = (A * b) / (A * A);
+
+				if (roadPieces_[currentPieceId].reverse_)
+					r_mid = -r_mid;
+
+				r_mid = r_mid * 1000.0;
+
+				double phiStart = std::fmod(p.localizableSections_[0].poseStart_.dphi_, 2.0 * pi<double>);
+				if (phiStart < 0.0)
+					phiStart += 2.0 * pi<double>;
+
+				double phiEnd = std::fmod(p.localizableSections_[0].poseEnd_.dphi_, 2.0 * pi<double>);
+				if (phiEnd < 0.0)
+					phiEnd += 2.0 * pi<double>;
+
+				if (phiEnd < phiStart)
+					phiEnd += 2.0 * pi<double>;
+
+				double dphi = phiEnd - phiStart;
+
+				throwing_assert(dphi >= 0.0);
+
+				double l_mid = std::abs(r_mid) * dphi;
+
+				double r_lane = r_mid - (i - 0.5 * (numLanes - 1)) * distanceLanes;
+				double l_lane = r_lane / r_mid * l_mid;
+
+				// arc tile
+				if (!tile)
+					tile = std::make_shared<LaneArcTile>(offset0, direction0, r_lane, l_lane);
+				else
+					tile = std::make_shared<LaneArcTile>(tile, r_lane, l_lane);
+			}
+			else
+			{
+				throwing_assert(false);
+			}
+
+			lane.addTile(tile);
+
+			// Look for connection end point starting at piece currentPieceId and socket currentSocketId.
+			bool invalid = true;
+			for (std::size_t j = 0; j < connections_.size(); ++j)
+			{
+				if (connections_[j].identifierX_ == currentPieceId && connections_[j].connectionX_ == currentSocketId)
+				{
+					currentPieceId = connections_[j].identifierY_;
+					currentSocketId = connections_[j].connectionY_;
+
+					// TODO There is probably no necessity to hardcode the following:
+					if (currentSocketId == 0)
+						currentSocketId = 1;
+					else if (currentSocketId == 1)
+						currentSocketId = 0;
+					else if (currentSocketId == 2)
+						currentSocketId = 3;
+					else if (currentSocketId == 3)
+						currentSocketId = 2;
+
+					invalid = false;
+					break;
+				}
+			}
+
+			throwing_assert(!invalid);
+		} while (currentPieceId != pieceId0 || currentSocketId != socketId0);
+
+		prototype.addLane(lane);
+	}
+
+	for (std::size_t i = 0; i < numLanes; ++i)
+	{
+		Lane lane = *prototype.at(i);
+		track.addLane(lane);
+	}
+}
+
 void AnkiOverdriveMap::loadRoadPieceDefinitions(boost::filesystem::path &pathToAppData)
 {
-	pieceDescriptions_.clear();
+	roadPieceDescriptions_.clear();
 
 	for (std::size_t i = 0; i < roadPieces_.size(); ++i)
 	{
-		if (pieceDescriptions_.find(roadPieces_[i].getFullIdentifier()) == pieceDescriptions_.end())
+		if (roadPieceDescriptions_.find(roadPieces_[i].getFullIdentifier()) == roadPieceDescriptions_.end())
 		{
 			auto file = pathToAppData / "files/expansion/assets/resources/basestation/config/modularRoadPieceDefinitionFiles/racing" / (boost::lexical_cast<std::string>(roadPieces_[i].unknown_) + "_" + boost::lexical_cast<std::string>(roadPieces_[i].numBits_) + "_" + boost::lexical_cast<std::string>(roadPieces_[i].identifier_) + ".txt");
 
@@ -239,7 +395,7 @@ void AnkiOverdriveMap::loadRoadPieceDefinitions(boost::filesystem::path &pathToA
 			AnkiOverdriveRoadPieceDescription pieceDescription;
 			fin >> pieceDescription;
 
-			pieceDescriptions_[roadPieces_[i].getFullIdentifier()] = pieceDescription;
+			roadPieceDescriptions_[roadPieces_[i].getFullIdentifier()] = pieceDescription;
 		}
 	}
 }

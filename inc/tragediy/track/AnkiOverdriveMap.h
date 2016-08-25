@@ -90,7 +90,7 @@ struct AnkiOverdriveMap
 {
 	std::vector<AnkiOverdriveRoadPiece> roadPieces_;
 	std::vector<AnkiConnection> connections_;
-	std::map<AnkiOverdriveRoadPiece::FullIdentifier, AnkiOverdriveRoadPieceDescription> pieceDescriptions_;
+	std::map<AnkiOverdriveRoadPiece::FullIdentifier, AnkiOverdriveRoadPieceDescription> roadPieceDescriptions_;
 	AnkiFinishLine finishLine_;
 	double offsetX_, offsetY_, theta_;
 	double thetaExtra_{0.0};
@@ -98,7 +98,7 @@ struct AnkiOverdriveMap
 	bool isValid() const;
 
 	void loadRacingMap(boost::filesystem::path &pathToAppData, const char *name);
-	//void convert(Track &track, double rotationAngle = 0.0);
+	void convert(Track &track, double rotationAngle = 0.0);
 
 private:
 	void loadRoadPieceDefinitions(boost::filesystem::path &pathToAppData);

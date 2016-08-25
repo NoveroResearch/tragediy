@@ -143,8 +143,9 @@ LocationTable::LocationTable(const Track &track)
 		first = true;
 		firstPosition = std::numeric_limits<double>::infinity();
 
-		for (auto it = lane->end() - 1; it >= lane->begin(); --it)
+		for (auto it = lane->end(); it != lane->begin();)
 		{
+			--it;
 			auto &tile = *it;
 
 			posAlongLane -= tile->length_;
@@ -155,8 +156,9 @@ LocationTable::LocationTable(const Track &track)
 				posAlongTile += std::get<2>(mark);
 			}
 
-			for (auto it2 = tile->marks_.end() - 1; it2 >= tile->marks_.begin(); --it2)
+			for (auto it2 = tile->marks_.end(); it2 != tile->marks_.begin();)
 			{
+				--it2;
 				auto &mark = *it2;
 
 				MarkType leftMark = std::get<0>(mark);

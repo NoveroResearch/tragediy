@@ -346,15 +346,13 @@ int main(int argc, char *argv[])
 		try
 		{
 			ankiMap.loadRacingMap(pathToAppData_, mapFileOverdrive_.c_str());
-			//ankiMap.convert(track, (rotation_ / 180.0) * pi<double>);
+			ankiMap.convert(track, (rotation_ / 180.0) * pi<double>);
 		}
 		catch (std::exception &err)
 		{
 			std::cout << "ERROR: Cannot load Anki Overdrive map: " << err.what() << std::endl;
 			std::exit(EXIT_FAILURE);
 		}
-
-		std::exit(EXIT_SUCCESS);
 	}
 	else
 	{
