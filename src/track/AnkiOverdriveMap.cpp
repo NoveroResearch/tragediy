@@ -246,7 +246,7 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 		std::shared_ptr<LaneTileBase> tile;
 
 		std::size_t pieceId0 = 0;
-		std::size_t socketId0 = 1;
+		std::size_t socketId0 = roadPieces_[pieceId0].reverse_ ? 0 : 1;
 
 		std::size_t currentPieceId = pieceId0;
 		std::size_t currentSocketId = socketId0;
@@ -264,13 +264,22 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 			throwing_assert(p.numLanes_ == numLanes);
 			throwing_assert(currentSocketId < p.connectors_.size());
 
-			if (p.type_ == 0)
-			{
-				// straight
-				throwing_assert(p.localizableSections_.size() == 1);
+			// TODO There is probably no necessity to hardcode the following:
+			std::size_t exitSocketId;
+			if (currentSocketId == 0)
+				exitSocketId = 1;
+			else if (currentSocketId == 1)
+				exitSocketId = 0;
+			else if (currentSocketId == 2)
+				exitSocketId = 3;
+			else if (currentSocketId == 3)
+				exitSocketId = 2;
 
-				Vector2 pointStart(p.localizableSections_[0].poseStart_.dx_, p.localizableSections_[0].poseStart_.dy_);
-				Vector2 pointEnd(p.localizableSections_[0].poseEnd_.dx_, p.localizableSections_[0].poseEnd_.dy_);
+			if (p.type_ == 0 || p.type_ == 4)
+			{
+				// straight or intersection
+				Vector2 pointStart(p.connectors_[currentSocketId].dx_, p.connectors_[currentSocketId].dy_);
+				Vector2 pointEnd(p.connectors_[exitSocketId].dx_, p.connectors_[exitSocketId].dy_);
 
 				double length = (pointEnd - pointStart).getLength();
 
@@ -278,11 +287,6 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 					tile = std::make_shared<LaneLineTile>(offset0, direction0, length * 1000.0);
 				else
 					tile = std::make_shared<LaneLineTile>(tile, length * 1000.0);
-			}
-			else if (p.type_ == 4)
-			{
-				// intersection
-				throwing_assert(false);
 			}
 			else if (p.type_ == 1)
 			{
@@ -342,6 +346,7 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 			lane.addTile(tile);
 
 			// Look for connection end point starting at piece currentPieceId and socket currentSocketId.
+
 			bool invalid = true;
 			for (std::size_t j = 0; j < connections_.size(); ++j)
 			{
