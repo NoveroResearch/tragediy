@@ -1,4 +1,4 @@
-#include <tragediy/track/AnkiMap.h>
+#include <tragediy/track/AnkiDriveMap.h>
 #include <tragediy/track/LaneArcTile.h>
 #include <tragediy/track/LaneLineTile.h>
 #include <tragediy/track/Track.h>
@@ -6,39 +6,13 @@
 
 #include <boost/lexical_cast.hpp>
 
-#include <cctype>
 #include <fstream>
-#include <iostream>
 #include <map>
 #include <sstream>
 #include <string>
 #include <vector>
 
-std::istream &skipAhead(std::istream &in)
-{
-	while (isspace(in.peek()))
-		in.get();
-
-	std::string line;
-	if (in.peek() == '#')
-	{
-		std::getline(in, line);
-		return skipAhead(in);
-	}
-
-	return in;
-}
-
-std::istream &operator>>(std::istream &in, AnkiPose &pose)
-{
-	skipAhead(in) >> pose.dx_;
-	skipAhead(in) >> pose.dy_;
-	skipAhead(in) >> pose.dphi_;
-
-	return in;
-}
-
-std::istream &operator>>(std::istream &in, AnkiLocation &location)
+std::istream &operator>>(std::istream &in, AnkiDriveRoadPieceLocation &location)
 {
 	skipAhead(in) >> location.x_;
 	skipAhead(in) >> location.y_;
@@ -49,7 +23,7 @@ std::istream &operator>>(std::istream &in, AnkiLocation &location)
 	return in;
 }
 
-std::istream &operator>>(std::istream &in, AnkiPieceDescription &pieceDescription)
+std::istream &operator>>(std::istream &in, AnkiDriveRoadPieceDescription &pieceDescription)
 {
 	skipAhead(in) >> pieceDescription.length_;
 	skipAhead(in) >> pieceDescription.radius_;
@@ -75,7 +49,7 @@ std::istream &operator>>(std::istream &in, AnkiPieceDescription &pieceDescriptio
 	return in;
 }
 
-std::istream &operator>>(std::istream &in, AnkiPiece &piece)
+std::istream &operator>>(std::istream &in, AnkiDriveRoadPiece &piece)
 {
 	std::size_t tmp;
 	skipAhead(in) >> piece.identifier_;
@@ -88,33 +62,13 @@ std::istream &operator>>(std::istream &in, AnkiPiece &piece)
 	return in;
 }
 
-std::istream &operator>>(std::istream &in, AnkiConnection &connection)
-{
-	skipAhead(in) >> connection.identifierX_;
-	skipAhead(in) >> connection.connectionX_;
-	skipAhead(in) >> connection.identifierY_;
-	skipAhead(in) >> connection.connectionY_;
-
-	return in;
-}
-
-std::istream &operator>>(std::istream &in, AnkiFinishLine &finishLine)
-{
-	skipAhead(in) >> finishLine.pieceId_;
-	skipAhead(in) >> finishLine.drivableSectionId_;
-	skipAhead(in) >> finishLine.start_;
-	skipAhead(in) >> finishLine.end_;
-
-	return in;
-}
-
-bool AnkiMap::isValid() const
+bool AnkiDriveMap::isValid() const
 {
 	bool valid = true;
 
 	for (std::size_t i = 0; i < connections_.size(); ++i)
 	{
-		if (connections_[i].identifierX_ >= pieces_.size() || connections_[i].identifierY_ >= pieces_.size())
+		if (connections_[i].identifierX_ >= roadPieces_.size() || connections_[i].identifierY_ >= roadPieces_.size())
 		{
 			std::cout << "ERROR: Invalid piece identifier in connection." << std::endl;
 			valid = false;
@@ -130,17 +84,17 @@ bool AnkiMap::isValid() const
 	return valid;
 }
 
-std::istream &operator>>(std::istream &in, AnkiMap &track)
+std::istream &operator>>(std::istream &in, AnkiDriveMap &track)
 {
 	std::size_t numPieces;
 
 	skipAhead(in) >> numPieces;
 
-	track.pieces_.clear();
-	track.pieces_.resize(numPieces);
+	track.roadPieces_.clear();
+	track.roadPieces_.resize(numPieces);
 
 	for (std::size_t i = 0; i < numPieces; ++i)
-		in >> track.pieces_[i];
+		in >> track.roadPieces_[i];
 
 	std::size_t numConnections;
 	skipAhead(in) >> numConnections;
@@ -172,7 +126,7 @@ std::istream &operator>>(std::istream &in, AnkiMap &track)
 	return in;
 }
 
-void AnkiMap::loadRacingMap(boost::filesystem::path &pathToAppData, const char *name)
+void AnkiDriveMap::loadRacingMap(boost::filesystem::path &pathToAppData, const char *name)
 {
 	auto file = pathToAppData / "files/expansion/assets/resources/basestation/config/mapFiles/racing" / name;
 
@@ -185,35 +139,35 @@ void AnkiMap::loadRacingMap(boost::filesystem::path &pathToAppData, const char *
 	loadRoadPieceDefinitions(pathToAppData);
 }
 
-void AnkiMap::loadRoadPieceDefinitions(boost::filesystem::path &pathToAppData)
+void AnkiDriveMap::loadRoadPieceDefinitions(boost::filesystem::path &pathToAppData)
 {
-	pieceDescriptions_.clear();
+	roadPieceDescriptions_.clear();
 
-	for (std::size_t i = 0; i < pieces_.size(); ++i)
+	for (std::size_t i = 0; i < roadPieces_.size(); ++i)
 	{
-		if (pieceDescriptions_.find(pieces_[i].identifier_) == pieceDescriptions_.end())
+		if (roadPieceDescriptions_.find(roadPieces_[i].identifier_) == roadPieceDescriptions_.end())
 		{
-			auto file = pathToAppData / "files/expansion/assets/resources/basestation/config/roadPieceDefinitionFiles/racing" / (boost::lexical_cast<std::string>(pieces_[i].identifier_) + ".txt");
+			auto file = pathToAppData / "files/expansion/assets/resources/basestation/config/roadPieceDefinitionFiles/racing" / (boost::lexical_cast<std::string>(roadPieces_[i].identifier_) + ".txt");
 
 			std::ifstream fin(file.c_str());
 			if (!fin)
-				throw std::runtime_error(std::string("Cannot open Anki road piece definition file ") + file.string() + ".");
+				throw std::runtime_error(std::string("Cannot open Anki Drive road piece definition file ") + file.string() + ".");
 
-			AnkiPieceDescription pieceDescription;
+			AnkiDriveRoadPieceDescription pieceDescription;
 			fin >> pieceDescription;
 
-			pieceDescriptions_[pieces_[i].identifier_] = pieceDescription;
+			roadPieceDescriptions_[roadPieces_[i].identifier_] = pieceDescription;
 		}
 	}
 }
 
-void AnkiMap::convert(Track &track, double rotationAngle)
+void AnkiDriveMap::convert(Track &track, double rotationAngle)
 {
-	throwing_assert(pieces_.size() > 0);
+	throwing_assert(roadPieces_.size() > 0);
 
 	std::size_t numLanes;
 	{
-		auto &p = pieceDescriptions_[pieces_[0].identifier_];
+		auto &p = roadPieceDescriptions_[roadPieces_[0].identifier_];
 		numLanes = p.numLanes_;
 	}
 
@@ -239,9 +193,9 @@ void AnkiMap::convert(Track &track, double rotationAngle)
 
 		do
 		{
-			throwing_assert(currentPieceId < pieces_.size());
+			throwing_assert(currentPieceId < roadPieces_.size());
 
-			auto &p = pieceDescriptions_[pieces_[currentPieceId].identifier_];
+			auto &p = roadPieceDescriptions_[roadPieces_[currentPieceId].identifier_];
 
 			throwing_assert(p.numLanes_ == numLanes);
 			throwing_assert(currentSocketId < p.numConnections_);
@@ -312,9 +266,9 @@ void AnkiMap::convert(Track &track, double rotationAngle)
 
 		do
 		{
-			throwing_assert(currentPieceId < pieces_.size());
+			throwing_assert(currentPieceId < roadPieces_.size());
 
-			auto &p = pieceDescriptions_[pieces_[currentPieceId].identifier_];
+			auto &p = roadPieceDescriptions_[roadPieces_[currentPieceId].identifier_];
 
 			throwing_assert(p.numLanes_ == numLanes);
 			throwing_assert(currentSocketId < p.numConnections_);
@@ -351,7 +305,7 @@ void AnkiMap::convert(Track &track, double rotationAngle)
 				if (error >= 0.5 * 9.0)
 					std::cout << "WARNING: Could not reliably map cartesian location to longitudinal location." << std::endl;
 
-				locations[laneIdentifier][lane.size()][distance] = std::make_pair(pieces_[currentPieceId].identifier_, i);
+				locations[laneIdentifier][lane.size()][distance] = std::make_pair(roadPieces_[currentPieceId].identifier_, i);
 			}
 
 			lane.addTile(tile);

@@ -17,7 +17,6 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <tragediy/track/AnkiMap.h>
 #include <tragediy/track/LaneArcTile.h>
 #include <tragediy/track/LaneLineTile.h>
 #include <tragediy/track/LocationTable.h>
@@ -28,6 +27,9 @@
 #include <tragediy/util/Vector2.h>
 
 #include <boost/filesystem.hpp>
+#include <tragediy/track/AnkiDriveMap.h>
+#include <tragediy/track/AnkiOverdriveMap.h>
+
 #include <boost/program_options.hpp>
 
 #include <cassert>
@@ -40,7 +42,7 @@ namespace po = boost::program_options;
 
 std::string trackName_;
 boost::filesystem::path pathToAppData_;
-std::string mapFile_;
+std::string mapFileDrive_, mapFileOverdrive_;
 std::string prefix_;
 std::string tileSize_("full");
 double rotation_ = 0.0;
@@ -58,7 +60,8 @@ auto handleCommandlineArguments(int argc, char *argv[]) -> po::variables_map
     ("size,s", po::value<std::string>(), "size of tiling (a4-landscape, a3-landscape, a4-portrait, a3-portrait, full)")
     ("track,t", po::value<std::string>(), "name of programmed tragediy tracks (starter, ring)")
     ("appdata,I", po::value<std::string>(), "path to the app data of Anki's android Drive or Overdrive app (e.g. ~/com.anki.drive)")
-    ("import,i", po::value<std::string>(), "Anki map file to import from the app data (e.g. IntersecProduction_map.txt or oval32wide_8pc_map.txt)")
+    ("import-drive,i", po::value<std::string>(), "Anki Drive map file to import from the app data (e.g. IntersecProduction_map.txt or oval32wide_8pc_map.txt)")
+    ("import-overdrive,j", po::value<std::string>(), "Anki Overdrive map file to import from the app data (e.g. modular_gunner.txt or modular_capsule.txt)")
     ("rotate", po::value<double>(), "rotate imported Anki maps by the given number of degrees");
 	// clang-format on
 	po::positional_options_description positionalOptions;
@@ -85,7 +88,23 @@ auto handleCommandlineArguments(int argc, char *argv[]) -> po::variables_map
 
 	if (vm.count("track"))
 		trackName_ = vm["track"].as<std::string>();
-	else if (vm.count("import"))
+	else if (vm.count("import-drive"))
+		mapFileDrive_ = vm["import-drive"].as<std::string>();
+	else if (vm.count("import-overdrive"))
+		mapFileOverdrive_ = vm["import-overdrive"].as<std::string>();
+	else
+	{
+		std::cout << "ERROR: Either command-line option --track must be specified or --import-drive/--import-overdrive.\n";
+		std::exit(EXIT_FAILURE);
+	}
+
+	if (vm.count("import-drive") && vm.count("import-overdrive"))
+	{
+		std::cout << "ERROR: --import-drive and --import-overdrive exclude each other.\n";
+		std::exit(EXIT_FAILURE);
+	}
+
+	if (vm.count("import-drive") || vm.count("import-overdrive"))
 	{
 		if (vm.count("appdata"))
 			pathToAppData_ = vm["appdata"].as<std::string>();
@@ -97,13 +116,6 @@ auto handleCommandlineArguments(int argc, char *argv[]) -> po::variables_map
 			std::cout << "ERROR: Track repository path is non-existent." << std::endl;
 			std::exit(EXIT_FAILURE);
 		}
-
-		mapFile_ = vm["import"].as<std::string>();
-	}
-	else
-	{
-		std::cout << "ERROR: Either command-line option --track must be specified or --import.\n";
-		std::exit(EXIT_FAILURE);
 	}
 
 	if (vm.count("rotate"))
@@ -312,20 +324,37 @@ int main(int argc, char *argv[])
 		constructStarterTrack(track);
 	else if (trackName_ == "ring")
 		constructRingTrack(track, borders, 150.0, 220.0, 10, false);
-	else if (trackName_ == "")
+	else if (trackName_ == "" && !mapFileDrive_.empty())
 	{
 		// Import map file.
-		AnkiMap ankiMap;
+		AnkiDriveMap ankiMap;
 		try
 		{
-			ankiMap.loadRacingMap(pathToAppData_, mapFile_.c_str());
+			ankiMap.loadRacingMap(pathToAppData_, mapFileDrive_.c_str());
 			ankiMap.convert(track, (rotation_ / 180.0) * pi<double>);
 		}
 		catch (std::exception &err)
 		{
-			std::cout << "ERROR: Cannot load Anki map: " << err.what() << std::endl;
+			std::cout << "ERROR: Cannot load Anki Drive map: " << err.what() << std::endl;
 			std::exit(EXIT_FAILURE);
 		}
+	}
+	else if (trackName_ == "" && !mapFileOverdrive_.empty())
+	{
+		// Import map file.
+		AnkiOverdriveMap ankiMap;
+		try
+		{
+			ankiMap.loadRacingMap(pathToAppData_, mapFileOverdrive_.c_str());
+			//ankiMap.convert(track, (rotation_ / 180.0) * pi<double>);
+		}
+		catch (std::exception &err)
+		{
+			std::cout << "ERROR: Cannot load Anki Overdrive map: " << err.what() << std::endl;
+			std::exit(EXIT_FAILURE);
+		}
+
+		std::exit(EXIT_SUCCESS);
 	}
 	else
 	{
