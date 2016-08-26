@@ -35,7 +35,7 @@ struct AnkiOverdriveRoadPieceLaneEntry
 
 std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceLaneEntry &laneEntry);
 
-struct AnkiOverdriveRoadPieceLocation
+struct AnkiOverdriveRoadPieceBarcodeEntry
 {
 	AnkiPose pose_;
 	int locationIndex_;
@@ -44,7 +44,7 @@ struct AnkiOverdriveRoadPieceLocation
 	std::size_t section_;
 };
 
-std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceLocation &location);
+std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceBarcodeEntry &location);
 
 struct AnkiOverdriveRoadPieceDescription
 {
@@ -66,7 +66,9 @@ struct AnkiOverdriveRoadPieceDescription
 	std::vector<AnkiPose> connectors_;
 	std::vector<AnkiOverdriveRoadPieceConnection> connections_;
 	std::vector<AnkiOverdriveRoadPieceLaneEntry> laneEntries_;
-	std::vector<AnkiOverdriveRoadPieceLocation> locations_;
+	std::vector<AnkiOverdriveRoadPieceBarcodeEntry> barcodeEntries_;
+
+	std::size_t getPairedConnectorId(std::size_t connectorIdentifier) const;
 };
 
 std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceDescription &pieceDescription);
@@ -75,7 +77,7 @@ struct AnkiOverdriveRoadPiece
 {
 	typedef std::tuple<std::size_t, std::size_t, std::size_t> FullIdentifier;
 
-	std::size_t unknown_;
+	std::size_t inverted_;
 	std::size_t numBits_;
 	std::size_t identifier_;
 	std::size_t speedLimit_;

@@ -29,14 +29,20 @@ struct AnkiDriveRoadPieceDescription
 	std::vector<AnkiDriveRoadPieceLocation> locations_;
 
 	std::size_t numConnections_;
+
+	std::size_t getPairedConnectorId(std::size_t connectorIdentifier) const;
 };
 
 std::istream &operator>>(std::istream &in, AnkiDriveRoadPieceDescription &pieceDescription);
 
 struct AnkiDriveRoadPiece
 {
+	typedef std::size_t FullIdentifier;
+
 	std::size_t identifier_;
 	std::size_t speedLimit_;
+
+	FullIdentifier getFullIdentifier() const;
 };
 
 std::istream &operator>>(std::istream &in, AnkiDriveRoadPiece &piece);

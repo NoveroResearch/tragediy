@@ -23,6 +23,13 @@ std::istream &operator>>(std::istream &in, AnkiDriveRoadPieceLocation &location)
 	return in;
 }
 
+std::size_t AnkiDriveRoadPieceDescription::getPairedConnectorId(std::size_t connectorIdentifier) const
+{
+	// If vehicle enters a road piece on socket identifier currentSocketId it exits the road piece on socket identifier currentSocketId + 1.
+	// TODO: This can probably solved for more general cases.
+	return connectorIdentifier + 1;
+}
+
 std::istream &operator>>(std::istream &in, AnkiDriveRoadPieceDescription &pieceDescription)
 {
 	skipAhead(in) >> pieceDescription.length_;
@@ -47,6 +54,11 @@ std::istream &operator>>(std::istream &in, AnkiDriveRoadPieceDescription &pieceD
 	// TODO remaining stuff
 
 	return in;
+}
+
+AnkiDriveRoadPiece::FullIdentifier AnkiDriveRoadPiece::getFullIdentifier() const
+{
+	return identifier_;
 }
 
 std::istream &operator>>(std::istream &in, AnkiDriveRoadPiece &piece)
@@ -139,35 +151,13 @@ void AnkiDriveMap::loadRacingMap(boost::filesystem::path &pathToAppData, const c
 	loadRoadPieceDefinitions(pathToAppData);
 }
 
-void AnkiDriveMap::loadRoadPieceDefinitions(boost::filesystem::path &pathToAppData)
-{
-	roadPieceDescriptions_.clear();
-
-	for (std::size_t i = 0; i < roadPieces_.size(); ++i)
-	{
-		if (roadPieceDescriptions_.find(roadPieces_[i].identifier_) == roadPieceDescriptions_.end())
-		{
-			auto file = pathToAppData / "files/expansion/assets/resources/basestation/config/roadPieceDefinitionFiles/racing" / (boost::lexical_cast<std::string>(roadPieces_[i].identifier_) + ".txt");
-
-			std::ifstream fin(file.c_str());
-			if (!fin)
-				throw std::runtime_error(std::string("Cannot open Anki Drive road piece definition file ") + file.string() + ".");
-
-			AnkiDriveRoadPieceDescription pieceDescription;
-			fin >> pieceDescription;
-
-			roadPieceDescriptions_[roadPieces_[i].identifier_] = pieceDescription;
-		}
-	}
-}
-
 void AnkiDriveMap::convert(Track &track, double rotationAngle)
 {
 	throwing_assert(roadPieces_.size() > 0);
 
 	std::size_t numLanes;
 	{
-		auto &p = roadPieceDescriptions_[roadPieces_[0].identifier_];
+		auto &p = roadPieceDescriptions_[roadPieces_[0].getFullIdentifier()];
 		numLanes = p.numLanes_;
 	}
 
@@ -195,7 +185,7 @@ void AnkiDriveMap::convert(Track &track, double rotationAngle)
 		{
 			throwing_assert(currentPieceId < roadPieces_.size());
 
-			auto &p = roadPieceDescriptions_[roadPieces_[currentPieceId].identifier_];
+			auto &p = roadPieceDescriptions_[roadPieces_[currentPieceId].getFullIdentifier()];
 
 			throwing_assert(p.numLanes_ == numLanes);
 			throwing_assert(currentSocketId < p.numConnections_);
@@ -234,8 +224,7 @@ void AnkiDriveMap::convert(Track &track, double rotationAngle)
 					currentPieceId = connections_[j].identifierY_;
 					currentSocketId = connections_[j].connectionY_;
 
-					// If vehicle enters a road piece on socket identifier currentSocketId it exits the road piece on socket identifier currentSocketId + 1.
-					++currentSocketId;
+					currentSocketId = roadPieceDescriptions_[roadPieces_[currentPieceId].getFullIdentifier()].getPairedConnectorId(currentSocketId);
 
 					invalid = false;
 					break;
@@ -268,7 +257,7 @@ void AnkiDriveMap::convert(Track &track, double rotationAngle)
 		{
 			throwing_assert(currentPieceId < roadPieces_.size());
 
-			auto &p = roadPieceDescriptions_[roadPieces_[currentPieceId].identifier_];
+			auto &p = roadPieceDescriptions_[roadPieces_[currentPieceId].getFullIdentifier()];
 
 			throwing_assert(p.numLanes_ == numLanes);
 			throwing_assert(currentSocketId < p.numConnections_);
@@ -319,8 +308,7 @@ void AnkiDriveMap::convert(Track &track, double rotationAngle)
 					currentPieceId = connections_[j].identifierY_;
 					currentSocketId = connections_[j].connectionY_;
 
-					// If vehicle enters a road piece on socket identifier currentSocketId it exits the road piece on socket identifier currentSocketId + 1.
-					++currentSocketId;
+					currentSocketId = roadPieceDescriptions_[roadPieces_[currentPieceId].getFullIdentifier()].getPairedConnectorId(currentSocketId);
 
 					invalid = false;
 					break;
@@ -381,5 +369,27 @@ void AnkiDriveMap::convert(Track &track, double rotationAngle)
 		}
 
 		track.addLane(lane);
+	}
+}
+
+void AnkiDriveMap::loadRoadPieceDefinitions(boost::filesystem::path &pathToAppData)
+{
+	roadPieceDescriptions_.clear();
+
+	for (std::size_t i = 0; i < roadPieces_.size(); ++i)
+	{
+		if (roadPieceDescriptions_.find(roadPieces_[i].getFullIdentifier()) == roadPieceDescriptions_.end())
+		{
+			auto file = pathToAppData / "files/expansion/assets/resources/basestation/config/roadPieceDefinitionFiles/racing" / (boost::lexical_cast<std::string>(roadPieces_[i].identifier_) + ".txt");
+
+			std::ifstream fin(file.c_str());
+			if (!fin)
+				throw std::runtime_error(std::string("Cannot open Anki Drive road piece definition file ") + file.string() + ".");
+
+			AnkiDriveRoadPieceDescription pieceDescription;
+			fin >> pieceDescription;
+
+			roadPieceDescriptions_[roadPieces_[i].getFullIdentifier()] = pieceDescription;
+		}
 	}
 }

@@ -39,7 +39,7 @@ std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceLaneEntry &lane
 	return in;
 }
 
-std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceLocation &location)
+std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceBarcodeEntry &location)
 {
 	skipAhead(in) >> location.pose_;
 	skipAhead(in) >> location.locationIndex_;
@@ -48,6 +48,24 @@ std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceLocation &locat
 	skipAhead(in) >> location.section_;
 
 	return in;
+}
+
+std::size_t AnkiOverdriveRoadPieceDescription::getPairedConnectorId(std::size_t connectorIdentifier) const
+{
+	// TODO: There is probably no necessity to hardcode the following.
+	std::size_t ret;
+	if (connectorIdentifier == 0)
+		ret = 1;
+	else if (connectorIdentifier == 1)
+		ret = 0;
+	else if (connectorIdentifier == 2)
+		ret = 3;
+	else if (connectorIdentifier == 3)
+		ret = 2;
+	else
+		throwing_assert(false);
+
+	return ret;
 }
 
 std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceDescription &pieceDescription)
@@ -120,11 +138,11 @@ std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceDescription &pi
 		std::size_t numLocations;
 		skipAhead(in) >> numLocations;
 
-		pieceDescription.locations_.clear();
-		pieceDescription.locations_.resize(numLocations);
+		pieceDescription.barcodeEntries_.clear();
+		pieceDescription.barcodeEntries_.resize(numLocations);
 
 		for (std::size_t i = 0; i < numLocations; ++i)
-			in >> pieceDescription.locations_[i];
+			in >> pieceDescription.barcodeEntries_[i];
 	}
 
 	return in;
@@ -132,7 +150,7 @@ std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPieceDescription &pi
 
 std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPiece &piece)
 {
-	skipAhead(in) >> piece.unknown_;
+	skipAhead(in) >> piece.inverted_;
 	skipAhead(in) >> piece.numBits_;
 	skipAhead(in) >> piece.identifier_;
 	skipAhead(in) >> piece.speedLimit_;
@@ -143,7 +161,7 @@ std::istream &operator>>(std::istream &in, AnkiOverdriveRoadPiece &piece)
 
 AnkiOverdriveRoadPiece::FullIdentifier AnkiOverdriveRoadPiece::getFullIdentifier() const
 {
-	return std::make_tuple(unknown_, numBits_, identifier_);
+	return std::make_tuple(inverted_, numBits_, identifier_);
 }
 
 bool AnkiOverdriveMap::isValid() const
@@ -264,16 +282,7 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 			throwing_assert(p.numLanes_ == numLanes);
 			throwing_assert(currentSocketId < p.connectors_.size());
 
-			// TODO There is probably no necessity to hardcode the following:
-			std::size_t exitSocketId;
-			if (currentSocketId == 0)
-				exitSocketId = 1;
-			else if (currentSocketId == 1)
-				exitSocketId = 0;
-			else if (currentSocketId == 2)
-				exitSocketId = 3;
-			else if (currentSocketId == 3)
-				exitSocketId = 2;
+			std::size_t exitSocketId = p.getPairedConnectorId(currentSocketId);
 
 			if (p.type_ == 0 || p.type_ == 4)
 			{
@@ -355,15 +364,7 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 					currentPieceId = connections_[j].identifierY_;
 					currentSocketId = connections_[j].connectionY_;
 
-					// TODO There is probably no necessity to hardcode the following:
-					if (currentSocketId == 0)
-						currentSocketId = 1;
-					else if (currentSocketId == 1)
-						currentSocketId = 0;
-					else if (currentSocketId == 2)
-						currentSocketId = 3;
-					else if (currentSocketId == 3)
-						currentSocketId = 2;
+					currentSocketId = roadPieceDescriptions_[roadPieces_[currentPieceId].getFullIdentifier()].getPairedConnectorId(currentSocketId);
 
 					invalid = false;
 					break;
@@ -376,9 +377,251 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 		prototype.addLane(lane);
 	}
 
+
+	// Construct middle lane and translate locations into longitudinal/lateral coordinate system.
+	std::map<Lane::Identifier, std::map<std::size_t, std::map<double, std::pair<std::size_t, std::size_t>>>> barcodeEntries; // Maps (lane id, tile index, longitudinal position) to the encoded numbers in the barcode (piece index, barcode entry index)
+	{
+		Lane lane(0);
+
+		std::shared_ptr<LaneTileBase> tile;
+
+		std::size_t pieceId0 = 0;
+		std::size_t socketId0 = roadPieces_[pieceId0].reverse_ ? 0 : 1;
+
+		std::size_t currentPieceId = pieceId0;
+		std::size_t currentSocketId = socketId0;
+
+		Vector2 offset0(offsetX_, offsetY_);
+		Vector2 direction0(std::cos(theta_ + rotationAngle), std::sin(theta_ + rotationAngle));
+
+		do
+		{
+			throwing_assert(currentPieceId < roadPieces_.size());
+
+			auto &p = roadPieceDescriptions_[roadPieces_[currentPieceId].getFullIdentifier()];
+
+			throwing_assert(p.numLanes_ == numLanes);
+			throwing_assert(currentSocketId < p.connectors_.size());
+
+			std::size_t exitSocketId = p.getPairedConnectorId(currentSocketId);
+
+			if (p.type_ == 0 || p.type_ == 4)
+			{
+				// straight or intersection
+				Vector2 pointStart(p.connectors_[currentSocketId].dx_, p.connectors_[currentSocketId].dy_);
+				Vector2 pointEnd(p.connectors_[exitSocketId].dx_, p.connectors_[exitSocketId].dy_);
+
+				double length = (pointEnd - pointStart).getLength();
+
+				if (!tile)
+					tile = std::make_shared<LaneLineTile>(offset0, direction0, length * 1000.0);
+				else
+					tile = std::make_shared<LaneLineTile>(tile, length * 1000.0);
+			}
+			else if (p.type_ == 1)
+			{
+				// curve
+				throwing_assert(p.localizableSections_.size() == 1);
+
+				Vector2 pointStart(p.localizableSections_[0].poseStart_.dx_, p.localizableSections_[0].poseStart_.dy_);
+				Vector2 directionStart(std::cos(p.localizableSections_[0].poseStart_.dphi_), std::sin(p.localizableSections_[0].poseStart_.dphi_));
+
+				Vector2 pointEnd(p.localizableSections_[0].poseEnd_.dx_, p.localizableSections_[0].poseEnd_.dy_);
+				Vector2 directionEnd(std::cos(p.localizableSections_[0].poseEnd_.dphi_), std::sin(p.localizableSections_[0].poseEnd_.dphi_));
+
+				Vector2 A(directionStart.getPerpendicularVectorLeft() - directionEnd.getPerpendicularVectorLeft());
+				Vector2 b(pointEnd - pointStart);
+
+				throwing_assert(A * A >= 1.0e-6);
+
+				// Solve A^T*A*x = A^T*b
+				double r_mid = (A * b) / (A * A);
+
+				if (roadPieces_[currentPieceId].reverse_)
+					r_mid = -r_mid;
+
+				r_mid = r_mid * 1000.0;
+
+				double phiStart = std::fmod(p.localizableSections_[0].poseStart_.dphi_, 2.0 * pi<double>);
+				if (phiStart < 0.0)
+					phiStart += 2.0 * pi<double>;
+
+				double phiEnd = std::fmod(p.localizableSections_[0].poseEnd_.dphi_, 2.0 * pi<double>);
+				if (phiEnd < 0.0)
+					phiEnd += 2.0 * pi<double>;
+
+				if (phiEnd < phiStart)
+					phiEnd += 2.0 * pi<double>;
+
+				double dphi = phiEnd - phiStart;
+
+				throwing_assert(dphi >= 0.0);
+
+				double l_mid = std::abs(r_mid) * dphi;
+
+				// arc tile
+				if (!tile)
+					tile = std::make_shared<LaneArcTile>(offset0, direction0, r_mid, l_mid);
+				else
+					tile = std::make_shared<LaneArcTile>(tile, r_mid, l_mid);
+			}
+			else
+			{
+				throwing_assert(false);
+			}
+
+			// Translate all locations of current piece into longitudinal positions.
+			for (std::size_t i = 0; i < p.barcodeEntries_.size(); ++i)
+			{
+				Vector2 x(p.barcodeEntries_[i].pose_.dx_, p.barcodeEntries_[i].pose_.dy_);
+				if (roadPieces_[currentPieceId].reverse_)
+				{
+					if (p.type_ == 0)
+					{
+						// WARNING: This assumes that the modular straight tiles originate at (0, 0) and point along the positive x-axis.
+						x = Vector2(tile->getTotalLength() * 0.001 - x[0], -x[1]);
+					}
+					else if (p.type_ == 1)
+					{
+						auto arcTile = std::dynamic_pointer_cast<LaneArcTile>(tile);
+						double radius = -arcTile->getRadius() * 0.001;
+						Vector2 ep(std::abs(radius), -radius);
+
+						if (radius > 0.0)
+						{
+							// Right turn.
+							x = Vector2(-ep[1] + x[1], ep[0] - x[0]);
+						}
+						else
+						{
+							// Left turn.
+							x = Vector2(ep[1] - x[1], -ep[0] + x[0]);
+						}
+					}
+					else
+					{
+						throwing_assert(false);
+					}
+				}
+
+				Vector2 q = tile->getStartPoint() + tile->getStartDirection() * (x[0] * 1000.0) + tile->getStartDirection().getPerpendicularVectorLeft() * (x[1] * 1000.0);
+
+				double distance, error;
+				Lane::Identifier laneIdentifier;
+				std::tie(laneIdentifier, distance, error) = prototype.map(q);
+				// TODO mapping should be constrained to tile in order to exclude problems due to overlapping tiles!!!
+
+				if (error >= 0.5 * distanceLanes)
+					std::cout << "WARNING: Could not reliably map cartesian location to longitudinal location." << std::endl;
+
+				barcodeEntries[laneIdentifier][lane.size()][distance] = std::make_pair(currentPieceId, i);
+			}
+
+			lane.addTile(tile);
+
+			// Look for connection end point starting at piece currentPieceId and socket currentSocketId.
+			bool invalid = true;
+			for (std::size_t j = 0; j < connections_.size(); ++j)
+			{
+				if (connections_[j].identifierX_ == currentPieceId && connections_[j].connectionX_ == currentSocketId)
+				{
+					currentPieceId = connections_[j].identifierY_;
+					currentSocketId = connections_[j].connectionY_;
+
+					currentSocketId = roadPieceDescriptions_[roadPieces_[currentPieceId].getFullIdentifier()].getPairedConnectorId(currentSocketId);
+
+					invalid = false;
+					break;
+				}
+			}
+
+			throwing_assert(!invalid);
+		} while (currentPieceId != pieceId0 || currentSocketId != socketId0);
+	}
+
+	// Add marks to track.
+	double threshold = 1.0e-10;
 	for (std::size_t i = 0; i < numLanes; ++i)
 	{
 		Lane lane = *prototype.at(i);
+
+		for (std::size_t j = 0; j < lane.size(); ++j)
+		{
+			auto &barcodeEntriesInTile = barcodeEntries[i][j];
+			auto tile = lane[j];
+
+			double fillState0 = lane.getPositionOfTile(j);
+			double fillState = fillState0;
+
+			double pieceLenGap = 0.0;
+			double pieceLenMark = 0.0;
+
+			for (auto &p : barcodeEntriesInTile)
+			{
+				// p.first: longitudinal position
+				// p.second: (piece index, barcode entry index)
+				auto &piece = roadPieces_[p.second.first];
+				auto &pieceDescription = roadPieceDescriptions_.at(piece.getFullIdentifier());
+				pieceLenGap = pieceDescription.gapLength_ * 1000.0;
+				pieceLenMark = pieceDescription.barcodeLength_ * 1000.0;
+
+				double markerPositionEnd = p.first + 0.5 * pieceLenMark;
+				double markerPositionStart = p.first - 0.5 * pieceLenMark;
+
+				double gap = markerPositionStart - fillState;
+				throwing_assert(gap >= 0.0);
+
+				tile->pushGap(gap);
+
+				auto &barcodeEntry = pieceDescription.barcodeEntries_.at(p.second.second);
+				if (barcodeEntry.locationIndex_ != -1)
+				{
+					std::size_t mask = (1 << ((piece.numBits_ - 1) - barcodeEntry.bit_));
+					MarkType leftMark = (barcodeEntry.locationIndex_ & mask) ? MT_THICK : MT_THIN;
+					MarkType rightMark = (piece.identifier_ & mask) ? MT_THICK : MT_THIN;
+
+					if (piece.reverse_)
+						std::swap(leftMark, rightMark);
+
+					tile->pushMark(leftMark, rightMark, false, pieceLenMark, pieceLenGap);
+				}
+				else
+				{
+					MarkType leftMark = MT_THICKER;
+					MarkType rightMark = MT_THIN;
+
+					if (piece.reverse_)
+						std::swap(leftMark, rightMark);
+
+					tile->pushMark(leftMark, rightMark, false, pieceLenMark, pieceLenGap);
+				}
+
+				fillState = fillState0 + tile->getFillLength();
+
+				if (std::abs(fillState - markerPositionEnd) > threshold)
+					std::cout << "WARNING: Fillstate deviates by " << fillState - markerPositionEnd << " mm." << std::endl;
+#if 0
+
+				if (fillState0 + tile->getTotalLength() - fillState >= 2.0 * (pieceLenGap + pieceLenMark))
+				{
+					tile->pushGap(pieceLenGap);
+					tile->pushMark(MT_THICKER, MT_THIN, false);
+
+					fillState = fillState0 + tile->getFillLength();
+				}
+#endif
+			}
+
+#if 0
+			//throwing_assert(fillState0 + tile->getTotalLength() - fillState >= pieceLenGap + pieceLenMark);
+
+			if (!tile->pushGap(fillState0 + tile->getTotalLength() - fillState - pieceLenMark - threshold))
+				std::cout << "WARNING: Cannot push final gap." << std::endl;
+			if (!tile->pushMark(MT_SEPARATOR, MT_SEPARATOR, false))
+				std::cout << "WARNING: Cannot push separator." << std::endl;
+#endif
+		}
+
 		track.addLane(lane);
 	}
 }
@@ -391,7 +634,7 @@ void AnkiOverdriveMap::loadRoadPieceDefinitions(boost::filesystem::path &pathToA
 	{
 		if (roadPieceDescriptions_.find(roadPieces_[i].getFullIdentifier()) == roadPieceDescriptions_.end())
 		{
-			auto file = pathToAppData / "files/expansion/assets/resources/basestation/config/modularRoadPieceDefinitionFiles/racing" / (boost::lexical_cast<std::string>(roadPieces_[i].unknown_) + "_" + boost::lexical_cast<std::string>(roadPieces_[i].numBits_) + "_" + boost::lexical_cast<std::string>(roadPieces_[i].identifier_) + ".txt");
+			auto file = pathToAppData / "files/expansion/assets/resources/basestation/config/modularRoadPieceDefinitionFiles/racing" / (boost::lexical_cast<std::string>(roadPieces_[i].inverted_) + "_" + boost::lexical_cast<std::string>(roadPieces_[i].numBits_) + "_" + boost::lexical_cast<std::string>(roadPieces_[i].identifier_) + ".txt");
 
 			std::ifstream fin(file.c_str());
 			if (!fin)
