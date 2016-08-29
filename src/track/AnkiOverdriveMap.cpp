@@ -379,7 +379,8 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 
 
 	// Construct middle lane and translate locations into longitudinal/lateral coordinate system.
-	std::map<Lane::Identifier, std::map<std::size_t, std::map<double, std::pair<std::size_t, std::size_t>>>> barcodeEntries; // Maps (lane id, tile index, longitudinal position) to the encoded numbers in the barcode (piece index, barcode entry index)
+	std::map<Lane::Identifier, std::map<std::size_t, std::map<double, std::pair<std::size_t, std::size_t>>>> barcodeEntries; // Maps (lane id, tile index, longitudinal position) to (piece index, barcode entry index).
+	std::vector<std::size_t> tileToPieceIndex; // Maps (tile index) to (piece index).
 	{
 		Lane lane(0);
 
@@ -397,6 +398,8 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 		do
 		{
 			throwing_assert(currentPieceId < roadPieces_.size());
+
+			tileToPieceIndex.push_back(currentPieceId);
 
 			auto &p = roadPieceDescriptions_[roadPieces_[currentPieceId].getFullIdentifier()];
 
@@ -470,9 +473,29 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 				throwing_assert(false);
 			}
 
+			// Determine connection.
+			std::size_t section1 = std::numeric_limits<std::size_t>::max(), section2 = std::numeric_limits<std::size_t>::max();
+			for (std::size_t j = 0; j < p.connections_.size(); ++j)
+			{
+				if (p.connections_[j].unknown_[1] == currentSocketId || p.connections_[j].unknown_[3] == currentSocketId)
+				{
+					section1 = p.connections_[j].unknown_[0];
+					section2 = p.connections_[j].unknown_[2];
+					break;
+				}
+			}
+
+			throwing_assert(section1 != std::numeric_limits<std::size_t>::max() && section2 != std::numeric_limits<std::size_t>::max());
+
 			// Translate all locations of current piece into longitudinal positions.
 			for (std::size_t i = 0; i < p.barcodeEntries_.size(); ++i)
 			{
+				if (p.barcodeEntries_[i].section_ != section1 && p.barcodeEntries_[i].section_ != section2)
+					continue;
+
+				if (p.type_ == 4)
+					continue;
+
 				Vector2 x(p.barcodeEntries_[i].pose_.dx_, p.barcodeEntries_[i].pose_.dy_);
 				if (roadPieces_[currentPieceId].reverse_)
 				{
@@ -504,12 +527,13 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 					}
 				}
 
+				// TODO rotate and shift intersection!!!
+
 				Vector2 q = tile->getStartPoint() + tile->getStartDirection() * (x[0] * 1000.0) + tile->getStartDirection().getPerpendicularVectorLeft() * (x[1] * 1000.0);
 
 				double distance, error;
 				Lane::Identifier laneIdentifier;
-				std::tie(laneIdentifier, distance, error) = prototype.map(q);
-				// TODO mapping should be constrained to tile in order to exclude problems due to overlapping tiles!!!
+				std::tie(laneIdentifier, distance, error) = prototype.mapConstrained(q, lane.size());
 
 				if (error >= 0.5 * distanceLanes)
 					std::cout << "WARNING: Could not reliably map cartesian location to longitudinal location." << std::endl;
@@ -553,17 +577,21 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 			double fillState0 = lane.getPositionOfTile(j);
 			double fillState = fillState0;
 
-			double pieceLenGap = 0.0;
-			double pieceLenMark = 0.0;
+			auto &piece = roadPieces_[tileToPieceIndex.at(j)];
+			auto &pieceDescription = roadPieceDescriptions_.at(piece.getFullIdentifier());
+
+			double pieceLenGap = pieceDescription.gapLength_ * 1000.0;
+			double pieceLenMark = pieceDescription.barcodeLength_ * 1000.0;
+
+			tile->pushMark(MT_SEPARATOR, MT_SEPARATOR, false, pieceLenMark, pieceLenGap);
+			fillState += pieceLenMark;
 
 			for (auto &p : barcodeEntriesInTile)
 			{
 				// p.first: longitudinal position
 				// p.second: (piece index, barcode entry index)
-				auto &piece = roadPieces_[p.second.first];
-				auto &pieceDescription = roadPieceDescriptions_.at(piece.getFullIdentifier());
-				pieceLenGap = pieceDescription.gapLength_ * 1000.0;
-				pieceLenMark = pieceDescription.barcodeLength_ * 1000.0;
+
+				throwing_assert(tileToPieceIndex.at(j) == p.second.first);
 
 				double markerPositionEnd = p.first + 0.5 * pieceLenMark;
 				double markerPositionStart = p.first - 0.5 * pieceLenMark;
@@ -580,7 +608,7 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 					MarkType leftMark = (barcodeEntry.locationIndex_ & mask) ? MT_THICK : MT_THIN;
 					MarkType rightMark = (piece.identifier_ & mask) ? MT_THICK : MT_THIN;
 
-					if (piece.reverse_)
+					if (piece.reverse_ || barcodeEntry.section_ == 2 || barcodeEntry.section_ == 3)
 						std::swap(leftMark, rightMark);
 
 					tile->pushMark(leftMark, rightMark, false, pieceLenMark, pieceLenGap);
@@ -590,7 +618,7 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 					MarkType leftMark = MT_THICKER;
 					MarkType rightMark = MT_THIN;
 
-					if (piece.reverse_)
+					if (piece.reverse_ || barcodeEntry.section_ == 2 || barcodeEntry.section_ == 3)
 						std::swap(leftMark, rightMark);
 
 					tile->pushMark(leftMark, rightMark, false, pieceLenMark, pieceLenGap);
@@ -600,26 +628,14 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 
 				if (std::abs(fillState - markerPositionEnd) > threshold)
 					std::cout << "WARNING: Fillstate deviates by " << fillState - markerPositionEnd << " mm." << std::endl;
-#if 0
-
-				if (fillState0 + tile->getTotalLength() - fillState >= 2.0 * (pieceLenGap + pieceLenMark))
-				{
-					tile->pushGap(pieceLenGap);
-					tile->pushMark(MT_THICKER, MT_THIN, false);
-
-					fillState = fillState0 + tile->getFillLength();
-				}
-#endif
 			}
 
-#if 0
-			//throwing_assert(fillState0 + tile->getTotalLength() - fillState >= pieceLenGap + pieceLenMark);
+			throwing_assert(fillState0 + tile->getTotalLength() - fillState - pieceLenMark + threshold >= 0.0);
 
 			if (!tile->pushGap(fillState0 + tile->getTotalLength() - fillState - pieceLenMark - threshold))
 				std::cout << "WARNING: Cannot push final gap." << std::endl;
-			if (!tile->pushMark(MT_SEPARATOR, MT_SEPARATOR, false))
+			if (!tile->pushMark(MT_SEPARATOR, MT_SEPARATOR, false, pieceLenMark, pieceLenGap))
 				std::cout << "WARNING: Cannot push separator." << std::endl;
-#endif
 		}
 
 		track.addLane(lane);
