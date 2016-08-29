@@ -93,9 +93,13 @@ To generate a ring track which fits on 4 sheets of paper use the following comma
 
 	./tragediy -t ring -s a3-landscape
 
-To import the crossroads track from Anki app data use the following command:
+To import the crossroads track from Anki Drive app data use the following command:
 
 	./tragediy -I $SOME_DIRECTORY/com.anki.drive/ -i IntersecProduction_map.txt --prefix crossroads
+
+To import one of the predefined tracks from Anki Overdrive app data use the following command:
+
+	./tragediy -I $SOME_DIRECTORY/com.anki.overdrive/ -j modular_micro.txt --prefix micro
 
 ### Output:
 

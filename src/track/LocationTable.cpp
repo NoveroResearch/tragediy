@@ -26,6 +26,7 @@
 #include <boost/property_tree/json_parser.hpp>
 
 #include <limits>
+#include <set>
 
 LocationTable::LocationTable()
 {
@@ -33,6 +34,8 @@ LocationTable::LocationTable()
 
 LocationTable::LocationTable(const Track &track)
 {
+	std::set<uint8_t> ambiguousRoadPieces;
+
 	for (auto &lane : track)
 	{
 		double posAlongLane = 0.0;
@@ -43,6 +46,8 @@ LocationTable::LocationTable(const Track &track)
 
 		bool first = true;
 		double firstPosition = std::numeric_limits<double>::infinity();
+
+		bool reverse = false;
 
 		for (auto it = lane->begin(); it != lane->end(); ++it)
 		{
@@ -56,32 +61,42 @@ LocationTable::LocationTable(const Track &track)
 				MarkType rightMark = std::get<1>(mark);
 				double len = std::get<2>(mark);
 
-				if ((leftMark == MT_THICKER && rightMark == MT_THIN) || (leftMark == MT_SEPARATOR && rightMark == MT_SEPARATOR))
+				if ((leftMark == MT_THICKER && rightMark == MT_THIN) || (leftMark == MT_THIN && rightMark == MT_THICKER) || (leftMark == MT_SEPARATOR && rightMark == MT_SEPARATOR))
 				{
+					if (leftMark == MT_THICKER && rightMark == MT_THIN)
+						reverse = false;
+					else if (leftMark == MT_THIN && rightMark == MT_THICKER)
+						reverse = true;
+
 					// counter clockwise: end block or segment boundary
-					if (numBits == bits)
-					{
-						LocationData locationData;
-						locationData.position = tile->getPointOnLane(posAlongTile + len);
-						locationData.direction = tile->getDirectionOnLane(posAlongTile + len);
-						locationData.lane = lane->getLaneNumber();
-						locationData.distance = posAlongLane + posAlongTile + len;
-
-						auto key = std::make_tuple(false, rightByte, leftByte);
-
-						if (locationTable_.find(key) != locationTable_.end())
-							std::cout << "Duplicate data block." << std::endl;
-
-						locationTable_[key] = locationData;
-					}
-					else if (numBits == 0)
+					if (numBits == 0)
 					{
 						if (first)
 							firstPosition = posAlongLane + posAlongTile + len;
 					}
 					else
 					{
-						std::cout << "Incomplete data block." << std::endl;
+						LocationData locationData;
+						locationData.position = tile->getPointOnLane(posAlongTile + len);
+						locationData.direction = tile->getDirectionOnLane(posAlongTile + len);
+						locationData.lane = lane->getLaneNumber();
+						locationData.distance = posAlongLane + posAlongTile + len;
+						locationData.backward = false;
+
+						if (reverse)
+						{
+							std::swap(rightByte, leftByte);
+
+							leftByte = reverseBits(leftByte, numBits);
+							rightByte = reverseBits(rightByte, numBits);
+						}
+
+						auto key = std::make_tuple(reverse, numBits, rightByte, leftByte);
+
+						if (locationTable_.find(key) != locationTable_.end())
+							ambiguousRoadPieces.insert(rightByte);
+
+						locationTable_[key] = locationData;
 					}
 
 					first = false;
@@ -91,7 +106,6 @@ LocationTable::LocationTable(const Track &track)
 				else if ((leftMark == MT_THIN || leftMark == MT_THICK) && (rightMark == MT_THIN || rightMark == MT_THICK))
 				{
 					// data bit
-
 					leftByte <<= 1;
 					if (leftMark == MT_THICK)
 						leftByte |= 1;
@@ -120,18 +134,27 @@ LocationTable::LocationTable(const Track &track)
 			posAlongLane += tile->length_;
 		}
 
-		if (firstPosition != std::numeric_limits<double>::infinity() && numBits == bits)
+		if (firstPosition != std::numeric_limits<double>::infinity() && numBits > 0)
 		{
 			LocationData locationData;
 			locationData.position = lane->getPointOnLane(firstPosition);
 			locationData.direction = lane->getDirectionOnLane(firstPosition);
 			locationData.lane = lane->getLaneNumber();
 			locationData.distance = firstPosition;
+			locationData.backward = false;
 
-			auto key = std::make_tuple(false, rightByte, leftByte);
+			if (reverse)
+			{
+				std::swap(rightByte, leftByte);
+
+				leftByte = reverseBits(leftByte, numBits);
+				rightByte = reverseBits(rightByte, numBits);
+			}
+
+			auto key = std::make_tuple(reverse, numBits, rightByte, leftByte);
 
 			if (locationTable_.find(key) != locationTable_.end())
-				std::cout << "Duplicate data block." << std::endl;
+				ambiguousRoadPieces.insert(rightByte);
 
 			locationTable_[key] = locationData;
 		}
@@ -142,6 +165,8 @@ LocationTable::LocationTable(const Track &track)
 
 		first = true;
 		firstPosition = std::numeric_limits<double>::infinity();
+
+		reverse = true;
 
 		for (auto it = lane->end(); it != lane->begin();)
 		{
@@ -161,36 +186,46 @@ LocationTable::LocationTable(const Track &track)
 				--it2;
 				auto &mark = *it2;
 
-				MarkType leftMark = std::get<0>(mark);
-				MarkType rightMark = std::get<1>(mark);
+				MarkType leftMark = std::get<1>(mark);
+				MarkType rightMark = std::get<0>(mark);
 				double len = std::get<2>(mark);
 
-				if ((leftMark == MT_THICKER && rightMark == MT_THIN) || (leftMark == MT_SEPARATOR && rightMark == MT_SEPARATOR))
+				if ((leftMark == MT_THICKER && rightMark == MT_THIN) || (leftMark == MT_THIN && rightMark == MT_THICKER) || (leftMark == MT_SEPARATOR && rightMark == MT_SEPARATOR))
 				{
+					if (leftMark == MT_THICKER && rightMark == MT_THIN)
+						reverse = false;
+					else if (leftMark == MT_THIN && rightMark == MT_THICKER)
+						reverse = true;
+
 					// clockwise: end block or segment boundary
-					if (numBits == 8)
-					{
-						LocationData locationData;
-						locationData.position = tile->getPointOnLane(posAlongTile - len);
-						locationData.direction = -tile->getDirectionOnLane(posAlongTile - len);
-						locationData.lane = lane->getLaneNumber();
-						locationData.distance = posAlongLane + posAlongTile - len;
-
-						auto key = std::make_tuple(true, rightByte, leftByte);
-
-						if (locationTable_.find(key) != locationTable_.end())
-							std::cout << "Duplicate data block." << std::endl;
-
-						locationTable_[key] = locationData;
-					}
-					else if (numBits == 0)
+					if (numBits == 0)
 					{
 						if (first)
 							firstPosition = posAlongLane + posAlongTile - len;
 					}
 					else
 					{
-						std::cout << "Incomplete data block." << std::endl;
+						LocationData locationData;
+						locationData.position = tile->getPointOnLane(posAlongTile - len);
+						locationData.direction = -tile->getDirectionOnLane(posAlongTile - len);
+						locationData.lane = lane->getLaneNumber();
+						locationData.distance = posAlongLane + posAlongTile - len;
+						locationData.backward = true;
+
+						if (reverse)
+						{
+							std::swap(rightByte, leftByte);
+
+							leftByte = reverseBits(leftByte, numBits);
+							rightByte = reverseBits(rightByte, numBits);
+						}
+
+						auto key = std::make_tuple(reverse, numBits, rightByte, leftByte);
+
+						if (locationTable_.find(key) != locationTable_.end())
+							ambiguousRoadPieces.insert(rightByte);
+
+						locationTable_[key] = locationData;
 					}
 
 					first = false;
@@ -200,13 +235,12 @@ LocationTable::LocationTable(const Track &track)
 				else if ((leftMark == MT_THIN || leftMark == MT_THICK) && (rightMark == MT_THIN || rightMark == MT_THICK))
 				{
 					// data bit
-
-					leftByte >>= 1;
+					leftByte <<= 1;
 					if (leftMark == MT_THICK)
-						leftByte |= 128;
-					rightByte >>= 1;
+						leftByte |= 1;
+					rightByte <<= 1;
 					if (rightMark == MT_THICK)
-						rightByte |= 128;
+						rightByte |= 1;
 					++numBits;
 				}
 				else if (leftMark == MT_THIN_DOUBLE && rightMark == MT_THIN_DOUBLE)
@@ -227,28 +261,45 @@ LocationTable::LocationTable(const Track &track)
 			}
 		}
 
-		if (firstPosition != std::numeric_limits<double>::infinity() && numBits == bits)
+		if (firstPosition != std::numeric_limits<double>::infinity() && numBits > 0)
 		{
 			LocationData locationData;
 			locationData.position = lane->getPointOnLane(firstPosition);
 			locationData.direction = -lane->getDirectionOnLane(firstPosition);
 			locationData.lane = lane->getLaneNumber();
 			locationData.distance = firstPosition;
+			locationData.backward = true;
 
-			auto key = std::make_tuple(true, rightByte, leftByte);
+			if (reverse)
+			{
+				std::swap(rightByte, leftByte);
+
+				leftByte = reverseBits(leftByte, numBits);
+				rightByte = reverseBits(rightByte, numBits);
+			}
+
+			auto key = std::make_tuple(reverse, numBits, rightByte, leftByte);
 
 			if (locationTable_.find(key) != locationTable_.end())
-				std::cout << "Duplicate data block." << std::endl;
+				ambiguousRoadPieces.insert(rightByte);
 
 			locationTable_[key] = locationData;
 		}
 	}
+
+	if (!ambiguousRoadPieces.empty())
+	{
+		std::cout << "WARNING: Encountered ambiguous location barcodes with the following road piece identifiers:";
+		for (auto &roadPieceIdentifier : ambiguousRoadPieces)
+			std::cout << " " << static_cast<std::size_t>(roadPieceIdentifier);
+		std::cout << std::endl;
+	}
 }
 
-auto LocationTable::findNext(bool clockwise, uint8_t segment, uint8_t block, const Track &track) const -> const_iterator
+auto LocationTable::findNext(bool reverse, uint8_t segment, uint8_t block, const Track &track) const -> const_iterator
 {
 
-	auto current = find(clockwise, segment, block);
+	auto current = find(reverse, segment, block);
 	if (current == end())
 	{
 		std::cout << "Could not find current segment/block combination." << std::endl;
@@ -268,11 +319,11 @@ auto LocationTable::findNext(bool clockwise, uint8_t segment, uint8_t block, con
 
 	for (auto it = locationTable_.begin(); it != locationTable_.end(); ++it)
 	{
-		if (std::get<0>(it->first) == clockwise && it->second.lane == current->second.lane)
+		if (std::get<0>(it->first) == reverse && it->second.lane == current->second.lane)
 		{
 			double position = it->second.distance;
 
-			if (clockwise)
+			if (reverse)
 			{
 				// position decreases in driving direction
 				if (position >= current->second.distance)
@@ -303,7 +354,7 @@ auto LocationTable::findNext(bool clockwise, uint8_t segment, uint8_t block, con
 	return next;
 }
 
-auto LocationTable::findNext(bool clockwise, Lane::Identifier laneId, double minPosition, const Track &track) const -> const_iterator
+auto LocationTable::findNext(bool reverse, Lane::Identifier laneId, double minPosition, const Track &track) const -> const_iterator
 {
 	auto lane = track.find(laneId);
 	if (lane == track.end())
@@ -324,11 +375,11 @@ auto LocationTable::findNext(bool clockwise, Lane::Identifier laneId, double min
 
 	for (auto it = locationTable_.begin(); it != locationTable_.end(); ++it)
 	{
-		if (std::get<0>(it->first) == clockwise && it->second.lane == laneId)
+		if (std::get<0>(it->first) == reverse && it->second.lane == laneId)
 		{
 			double position = it->second.distance;
 
-			if (clockwise)
+			if (reverse)
 			{
 				// position decreases in driving direction
 				if (position >= minPosition)
@@ -376,26 +427,32 @@ void LocationTable::readJsonFromStream(std::istream &in, const BoundingBox &bb)
 
 	for (auto &i : pt)
 	{
-		bool clockwise = (i.first == "cw");
+		bool reverse = (i.first == "reverse");
 
-		if (i.first != "ccw" && i.first != "cw")
+		if (i.first != "non-reverse" && i.first != "reverse")
 			throw std::runtime_error("Error parsing location table from JSON input: Invalid entry on first level.");
 
 		for (auto &j : i.second)
 		{
-			uint8_t segment = boost::numeric_cast<uint8_t>(boost::lexical_cast<int>(j.first));
+			std::size_t numbits = boost::lexical_cast<std::size_t>(j.first);
 
 			for (auto &k : j.second)
 			{
-				uint8_t block = boost::numeric_cast<uint8_t>(boost::lexical_cast<int>(k.first));
+				uint8_t segment = boost::numeric_cast<uint8_t>(boost::lexical_cast<int>(k.first));
 
-				LocationData locationData;
-				locationData.position = Vector2(bb.xMin_ + k.second.get<double>("position_x") * (bb.xMax_ - bb.xMin_), bb.yMin_ + k.second.get<double>("position_y") * (bb.yMax_ - bb.yMin_));
-				locationData.direction = Vector2(std::cos(k.second.get<double>("phi")), std::sin(k.second.get<double>("phi")));
-				locationData.distance = k.second.get<double>("distance");
-				locationData.lane = k.second.get<std::size_t>("lane");
+				for (auto &l : k.second)
+				{
+					uint8_t block = boost::numeric_cast<uint8_t>(boost::lexical_cast<int>(l.first));
 
-				locationTable_[std::make_tuple(clockwise, segment, block)] = locationData;
+					LocationData locationData;
+					locationData.position = Vector2(bb.xMin_ + l.second.get<double>("position_x") * (bb.xMax_ - bb.xMin_), bb.yMin_ + l.second.get<double>("position_y") * (bb.yMax_ - bb.yMin_));
+					locationData.direction = Vector2(std::cos(l.second.get<double>("phi")), std::sin(l.second.get<double>("phi")));
+					locationData.distance = l.second.get<double>("distance");
+					locationData.lane = l.second.get<std::size_t>("lane");
+					locationData.backward = l.second.get<bool>("backward");
+
+					locationTable_[std::make_tuple(reverse, numbits, segment, block)] = locationData;
+				}
 			}
 		}
 	}
@@ -418,52 +475,76 @@ void LocationTable::writeToStreamAsSvg(std::ostream &out) const
 void LocationTable::writeToStreamAsCsv(std::ostream &out) const
 {
 	for (auto &entry : locationTable_)
-		// cw/ccw, segment, block, position, direction, lane, distance
-		out << std::get<0>(entry.first) << " " << static_cast<std::size_t>(std::get<1>(entry.first)) << " " << static_cast<std::size_t>(std::get<2>(entry.first)) << " " << entry.second.position[0] << " " << entry.second.position[1] << " " << entry.second.lane << " " << entry.second.distance << "\n";
+		// reverse, numbits, segment, block, position, direction, lane, distance, cw/ccw
+		out << std::get<0>(entry.first) << " " << std::get<1>(entry.first) << " " << static_cast<std::size_t>(std::get<2>(entry.first)) << " " << static_cast<std::size_t>(std::get<3>(entry.first)) << " " << entry.second.position[0] << " " << entry.second.position[1] << " " << entry.second.lane << " " << entry.second.distance << " " << entry.second.backward << "\n";
 }
 
 void LocationTable::writeToStreamAsJson(std::ostream &out, const BoundingBox &bb) const
 {
 	bool firstBlockInSegment = true;
 
-	std::pair<bool, bool> sectionOpen = std::make_pair(false, false);
-	std::pair<bool, uint8_t> sectionLastValue = std::make_pair(false, static_cast<uint8_t>(0));
+	std::tuple<bool, bool, bool> sectionOpen = std::make_tuple(false, false, false);
+	std::tuple<bool, std::size_t, uint8_t> sectionLastValue = std::make_tuple(false, static_cast<std::size_t>(0), static_cast<uint8_t>(0));
 
 	out << "{\n";
 	for (auto &entry : locationTable_)
 	{
-		// prepare ccw/cw section
-		if (!sectionOpen.first)
+		// prepare (non-)reverse section
+		if (!std::get<0>(sectionOpen))
 		{
-			sectionOpen.first = true;
-			sectionLastValue.first = std::get<0>(entry.first);
-			out << "\t\"" << (sectionLastValue.first ? "cw" : "ccw") << "\": {\n";
+			std::get<0>(sectionOpen) = true;
+			std::get<0>(sectionLastValue) = std::get<0>(entry.first);
+			out << "\t\"" << (std::get<0>(sectionLastValue) ? "reverse" : "non-reverse") << "\": {\n";
 		}
-		else if (sectionLastValue.first != std::get<0>(entry.first))
+		else if (std::get<0>(sectionLastValue) != std::get<0>(entry.first))
 		{
-			if (sectionOpen.second)
+			if (std::get<2>(sectionOpen))
 			{
-				sectionOpen.second = false;
-				out << "\n\t\t}\n";
+				std::get<2>(sectionOpen) = false;
+				out << "\n\t\t\t}\n";
+			}
+			if (std::get<1>(sectionOpen))
+			{
+				std::get<1>(sectionOpen) = false;
+				out << "\t\t}\n";
 			}
 			out << "\t},\n";
-			sectionLastValue.first = std::get<0>(entry.first);
-			out << "\t\"" << (sectionLastValue.first ? "cw" : "ccw") << "\": {\n";
+			std::get<0>(sectionLastValue) = std::get<0>(entry.first);
+			out << "\t\"" << (std::get<0>(sectionLastValue) ? "reverse" : "non-reverse") << "\": {\n";
+		}
+
+		// prepare number of bits section
+		if (!std::get<1>(sectionOpen))
+		{
+			std::get<1>(sectionOpen) = true;
+			std::get<1>(sectionLastValue) = std::get<1>(entry.first);
+			out << "\t\t\"" << std::get<1>(sectionLastValue) << "\": {\n";
+		}
+		else if (std::get<1>(sectionLastValue) != std::get<1>(entry.first))
+		{
+			if (std::get<2>(sectionOpen))
+			{
+				std::get<2>(sectionOpen) = false;
+				out << "\n\t\t\t}\n";
+			}
+			out << "\t\t},\n";
+			std::get<1>(sectionLastValue) = std::get<1>(entry.first);
+			out << "\t\t\"" << std::get<1>(sectionLastValue) << "\": {\n";
 		}
 
 		// prepare segment section
-		if (!sectionOpen.second)
+		if (!std::get<2>(sectionOpen))
 		{
-			sectionOpen.second = true;
-			sectionLastValue.second = std::get<1>(entry.first);
-			out << "\t\t\"" << static_cast<std::size_t>(sectionLastValue.second) << "\": {\n";
+			std::get<2>(sectionOpen) = true;
+			std::get<2>(sectionLastValue) = std::get<2>(entry.first);
+			out << "\t\t\t\"" << static_cast<std::size_t>(std::get<2>(sectionLastValue)) << "\": {\n";
 			firstBlockInSegment = true;
 		}
-		else if (sectionLastValue.second != std::get<1>(entry.first))
+		else if (std::get<2>(sectionLastValue) != std::get<2>(entry.first))
 		{
-			out << "\n\t\t},\n";
-			sectionLastValue.second = std::get<1>(entry.first);
-			out << "\t\t\"" << static_cast<std::size_t>(sectionLastValue.second) << "\": {\n";
+			out << "\n\t\t\t},\n";
+			std::get<2>(sectionLastValue) = std::get<2>(entry.first);
+			out << "\t\t\t\"" << static_cast<std::size_t>(std::get<2>(sectionLastValue)) << "\": {\n";
 			firstBlockInSegment = true;
 		}
 
@@ -473,19 +554,22 @@ void LocationTable::writeToStreamAsJson(std::ostream &out, const BoundingBox &bb
 		else
 			out << ",\n";
 
-		out << "\t\t\t\"" << static_cast<std::size_t>(std::get<2>(entry.first)) << "\": {\n";
+		out << "\t\t\t\t\"" << static_cast<std::size_t>(std::get<3>(entry.first)) << "\": {\n";
 		const Vector2 &x = entry.second.position;
-		out << "\t\t\t\t\"position_x\": " << (x[0] - bb.xMin_) / (bb.xMax_ - bb.xMin_) << ",\n";
-		out << "\t\t\t\t\"position_y\": " << (x[1] - bb.yMin_) / (bb.yMax_ - bb.yMin_) << ",\n";
-		out << "\t\t\t\t\"phi\": " << std::atan2(entry.second.direction[1], entry.second.direction[0]) << ",\n";
-		out << "\t\t\t\t\"distance\":   " << entry.second.distance << ",\n";
-		out << "\t\t\t\t\"lane\":       " << entry.second.lane << "\n";
-		out << "\t\t\t}";
+		out << "\t\t\t\t\t\"position_x\": " << (x[0] - bb.xMin_) / (bb.xMax_ - bb.xMin_) << ",\n";
+		out << "\t\t\t\t\t\"position_y\": " << (x[1] - bb.yMin_) / (bb.yMax_ - bb.yMin_) << ",\n";
+		out << "\t\t\t\t\t\"phi\": " << std::atan2(entry.second.direction[1], entry.second.direction[0]) << ",\n";
+		out << "\t\t\t\t\t\"distance\":   " << entry.second.distance << ",\n";
+		out << "\t\t\t\t\t\"lane\":       " << entry.second.lane << ",\n";
+		out << "\t\t\t\t\t\"backward\":   " << entry.second.backward << "\n";
+		out << "\t\t\t\t}";
 	}
 
-	if (sectionOpen.second)
-		out << "\n\t\t}\n";
-	if (sectionOpen.first)
+	if (std::get<2>(sectionOpen))
+		out << "\n\t\t\t}\n";
+	if (std::get<1>(sectionOpen))
+		out << "\t\t}\n";
+	if (std::get<0>(sectionOpen))
 		out << "\t}\n";
 	out << "}\n";
 }
