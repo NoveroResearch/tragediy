@@ -58,6 +58,7 @@ public:
 	auto mapSigned(const Vector2 &coordinate) const -> std::tuple<std::size_t, double, double, double>;
 
 	auto mapConstrained(const Vector2 &coordinate, const Vector2 &direction) const -> std::tuple<std::size_t, double, double>;
+	auto mapConstrained(const Vector2 &coordinate, LaneTileBase::Identifier tileIdentifier) const -> std::tuple<std::size_t, double, double>;
 
 	auto unmapSigned(std::size_t lane, double distance, double offset) const -> Vector2;
 

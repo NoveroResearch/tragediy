@@ -439,3 +439,19 @@ auto Track::mapConstrained(const Vector2 &coordinate, const Vector2 &direction) 
 
 	return best;
 }
+
+auto Track::mapConstrained(const Vector2 &coordinate, LaneTileBase::Identifier tileIdentifier) const -> std::tuple<std::size_t, double, double>
+{
+	std::tuple<std::size_t, double, double> best = std::make_tuple(std::numeric_limits<std::size_t>::max(), std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+
+	for (auto &lane : lanes_)
+	{
+		double distance, error;
+		std::tie(distance, error) = (*lane)[tileIdentifier]->map(coordinate);
+
+		if (error < std::get<2>(best))
+			best = std::make_tuple(lane->getLaneNumber(), lane->getPositionOfTile(tileIdentifier) + distance, error);
+	}
+
+	return best;
+}
