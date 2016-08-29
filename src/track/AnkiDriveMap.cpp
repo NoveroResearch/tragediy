@@ -140,11 +140,17 @@ std::istream &operator>>(std::istream &in, AnkiDriveMap &track)
 
 void AnkiDriveMap::loadRacingMap(boost::filesystem::path &pathToAppData, const char *name)
 {
-	auto file = pathToAppData / "files/expansion/assets/resources/basestation/config/mapFiles/racing" / name;
+	boost::filesystem::path file = name;
 
 	std::ifstream fin(file.c_str());
 	if (!fin)
-		throw std::runtime_error(std::string("Cannot open Anki map file ") + file.string() + ".");
+	{
+		file = pathToAppData / "files/expansion/assets/resources/basestation/config/mapFiles/racing" / name;
+
+		fin = std::ifstream(file.c_str());
+		if (!fin)
+			throw std::runtime_error(std::string("Cannot open Anki map file ") + file.string() + ".");
+	}
 
 	fin >> (*this);
 
