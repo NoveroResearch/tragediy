@@ -19,7 +19,6 @@
 
 #include <tragediy/track/AnkiCommon.h>
 
-
 std::istream &skipAhead(std::istream &in)
 {
 	while (isspace(in.peek()))

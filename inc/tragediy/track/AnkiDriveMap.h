@@ -20,8 +20,8 @@
 #ifndef TRAGEDIY_TRACK_ANKIDRIVEMAP_H
 #define TRAGEDIY_TRACK_ANKIDRIVEMAP_H
 
-#include <tragediy/track/Track.h>
 #include <tragediy/track/AnkiCommon.h>
+#include <tragediy/track/Track.h>
 
 #include <iostream>
 #include <map>

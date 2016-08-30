@@ -67,7 +67,6 @@ public:
 	void writeToStreamAsJson(std::ostream &out, const BoundingBox &bb) const;
 
 private:
-
 	uint8_t reverseBits(uint8_t x, std::size_t numbits) const;
 	std::map<std::tuple<bool, std::size_t, uint8_t, uint8_t>, LocationData> locationTable_;
 };

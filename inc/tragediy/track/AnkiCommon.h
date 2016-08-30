@@ -20,8 +20,8 @@
 #ifndef TRAGEDIY_TRACK_ANKICOMMON_H
 #define TRAGEDIY_TRACK_ANKICOMMON_H
 
-#include <iostream>
 #include <cctype>
+#include <iostream>
 
 std::istream &skipAhead(std::istream &in);
 

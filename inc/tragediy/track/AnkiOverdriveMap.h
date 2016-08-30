@@ -20,13 +20,12 @@
 #ifndef TRAGEDIY_TRACK_ANKIOVERDRIVEMAP_H
 #define TRAGEDIY_TRACK_ANKIOVERDRIVEMAP_H
 
-#include <tragediy/track/Track.h>
 #include <tragediy/track/AnkiCommon.h>
+#include <tragediy/track/Track.h>
 
 #include <iostream>
 #include <map>
 #include <vector>
-
 
 struct AnkiOverdriveLocalizableSection
 {

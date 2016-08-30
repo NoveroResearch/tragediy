@@ -402,10 +402,9 @@ void AnkiOverdriveMap::convert(Track &track, double rotationAngle)
 		prototype.addLane(lane);
 	}
 
-
 	// Construct middle lane and translate locations into longitudinal/lateral coordinate system.
 	std::map<Lane::Identifier, std::map<std::size_t, std::map<double, std::pair<std::size_t, std::size_t>>>> barcodeEntries; // Maps (lane id, tile index, longitudinal position) to (piece index, barcode entry index).
-	std::vector<std::size_t> tileToPieceIndex; // Maps (tile index) to (piece index).
+	std::vector<std::size_t> tileToPieceIndex;                                                                               // Maps (tile index) to (piece index).
 	{
 		Lane lane(0);
 
